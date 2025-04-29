@@ -9,6 +9,7 @@ import { execSync } from 'child_process';
 import process from 'process';
 import * as pkgManagerService from '../pkgManager/service';
 import chalk from 'chalk';
+import { runNpmHook } from './cli';
 
 export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerContext) => {
     let localArgs: Args;
@@ -37,34 +38,55 @@ export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerCon
         localArgs._,
         undefined // Interactive mode is not needed here, selectFile handles it
     );
-    const { module: mod } = await selectFile(await findScripts(), {
+    const selectedFile = await selectFile(await findScripts(), {
         ui,
         hint: scriptName,
     });
+    const finalScriptName = selectedFile.name;
+    const mod = selectedFile.module;
 
-    if (typeof mod.run !== 'function') {
-        throw new Error('Function `run` is missing!');
+    if (typeof mod?.run !== 'function') {
+        throw new Error(`Function \`run\` is missing in script ${finalScriptName}!`);
     }
 
-    // Run tests only if the script name starts with "deploy"
-    if (scriptName && scriptName.toLowerCase().startsWith('deploy')) {
-        ui.write('Running tests before deployment...');
-        
-        try {
-            // Use the service to run the test command
-            const result = pkgManagerService.runCommand('test', []);
-            if (result.status !== 0) {
-                 throw new Error('Tests failed. Deployment aborted.');
-            }
-        } catch (e) {
-            ui.write(chalk.redBright(`\n${(e as Error).message || 'Test execution failed.'}\n`));
-            process.exit(1);
+    ui.write(chalk.gray(`Checking for pre-hook for command 'run' with argument '${finalScriptName}'...`));
+    // --- Pre-hook Execution (Moved Here) ---
+    // Run pre-hook AFTER the script name is determined
+    try {
+        const preHookResult = await runNpmHook('pre', 'run', finalScriptName, ui);
+        if (!preHookResult.success) {
+            ui.write(chalk.redBright(`Aborting command due to pre-run:${finalScriptName} hook failure.`));
+            process.exit(1); // Abort if pre-hook failed
         }
+    } catch (e) {
+         ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
+         process.exit(1);
     }
+    // --- End Pre-hook ---
 
     const networkProvider = await createNetworkProvider(ui, localArgs, context.config);
 
     // Pass positional arguments (everything after the script name)
-    const scriptArgs = localArgs._.slice(2);
-    await mod.run(networkProvider, scriptArgs);
+    const scriptArgs = localArgs._.slice(1);
+
+    try {
+        await mod.run(networkProvider, scriptArgs);
+
+        ui.write(chalk.gray(`Script ${finalScriptName} executed successfully. Checking for post-hook...`));
+        // --- Post-hook Execution (Moved Here) ---
+        try {
+             const postHookResult = await runNpmHook('post', 'run', finalScriptName, ui);
+             if (!postHookResult.success) {
+                 // Don't exit, just warn if post-hook fails
+                 ui.write(chalk.yellowBright(`Warning: post-run:${finalScriptName} hook script failed.`));
+             }
+        } catch (e) {
+            ui.write(chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`));
+        }
+        // --- End Post-hook ---
+
+    } catch(e) {
+        ui.write(chalk.redBright(`Error executing script ${finalScriptName}: ${(e as Error).message || e}`));
+        process.exit(1);
+    }
 };

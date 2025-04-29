@@ -19,6 +19,7 @@ import { spawnSync } from 'child_process';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import * as pkgManagerService from '../pkgManager/service';
+import { UIProvider } from '../ui/UIProvider';
 
 const runners: Record<string, Runner> = {
     create,
@@ -33,11 +34,11 @@ const runners: Record<string, Runner> = {
 
 // Helper function to find and run npm lifecycle hooks
 // Checks standard hooks first, then standard hooks with arg patterns, then fully custom hooks.
-async function runNpmHook(
+export async function runNpmHook(
     hookType: 'pre' | 'post',
     actualCommand: string,       // The actual command invoked (e.g., 'run', 'build')
     actualArg: string | undefined, // The actual first argument passed (e.g., 'deploy-staging')
-    ui: InquirerUIProvider
+    ui: UIProvider
 ): Promise<{ ran: boolean; success: boolean }> {
 
     let packageJson: any;
@@ -251,21 +252,27 @@ async function main() {
 
     try {
         // --- Pre-hook execution ---
-        const preHookResult = await runNpmHook('pre', command, args._[1], ui);
-        if (!preHookResult.success) {
-            ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
-            process.exit(1); // Abort if pre-hook failed
+        let preHookRan = false;
+        if (command !== 'run') { // Only run pre-hook here if NOT the 'run' command
+            const preHookResult = await runNpmHook('pre', command, args._[1], ui);
+            preHookRan = preHookResult.ran;
+            if (!preHookResult.success) {
+                ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
+                process.exit(1); // Abort if pre-hook failed
+            }
         }
         // --- End Pre-hook ---
 
         await runner(args, ui, runnerContext);
 
         // --- Post-hook execution ---
-        // Only run post-hook if pre-hook didn't fail (implied) and runner succeeded
-        const postHookResult = await runNpmHook('post', command, args._[1], ui);
-        if (!postHookResult.success) {
-            // Don't exit, just warn if post-hook fails
-            ui.write(chalk.yellowBright('Warning: post-hook script failed.'));
+        if (command !== 'run') { // Only run post-hook here if NOT the 'run' command
+            // Only run post-hook if pre-hook didn't fail (implied) and runner succeeded
+            const postHookResult = await runNpmHook('post', command, args._[1], ui);
+            if (!postHookResult.success) {
+                // Don't exit, just warn if post-hook fails
+                ui.write(chalk.yellowBright('Warning: post-hook script failed.'));
+            }
         }
         // --- End Post-hook ---
 
