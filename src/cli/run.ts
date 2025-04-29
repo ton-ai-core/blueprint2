@@ -67,7 +67,7 @@ export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerCon
     const networkProvider = await createNetworkProvider(ui, localArgs, context.config);
 
     // Pass positional arguments (everything after the script name)
-    const scriptArgs = localArgs._.slice(1);
+    const scriptArgs = localArgs._.slice(2);
 
     try {
         await mod.run(networkProvider, scriptArgs);
