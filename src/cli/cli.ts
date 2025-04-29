@@ -31,8 +31,8 @@ const runners: Record<string, Runner> = {
     convert,
 };
 
-// Helper function to find and run npm lifecycle hooks with regex support in keys
-// Handles both standard npm hooks (e.g., prebuild) and custom regex hooks (e.g., pre:cmd:arg_pattern)
+// Helper function to find and run npm lifecycle hooks
+// Checks standard hooks first, then standard hooks with arg patterns, then fully custom hooks.
 async function runNpmHook(
     hookType: 'pre' | 'post',
     actualCommand: string,       // The actual command invoked (e.g., 'run', 'build')
@@ -53,14 +53,17 @@ async function runNpmHook(
         return { ran: false, success: true }; // No scripts defined
     }
 
-    // 1. Check for standard npm lifecycle script (e.g., prebuild, posttest)
+    // --- 1. Check standard hook (no arg) ---
     const standardHookName = `${hookType}${actualCommand}`;
     if (actualArg === undefined && packageJson.scripts[standardHookName]) {
         // Standard hook exists and no argument was passed
         const packageManager = pkgManagerService.detectPackageManager();
         ui.write(chalk.blue(`Executing standard ${hookType}-hook: ${chalk.bold(`${packageManager} run ${standardHookName}`)}...`));
         try {
-            const result = pkgManagerService.runCommand('run', [standardHookName]);
+            // Standard hooks likely don't contain regex chars, but escaping doesn't hurt
+            const escapedStandardHookName = standardHookName.replace(/\\/g, '\\\\');
+            // No argument to pass for standard hooks triggered without args
+            const result = pkgManagerService.runCommand('run', [escapedStandardHookName]);
             if (result.status !== 0) {
                 ui.write(chalk.redBright(`Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${result.status}.`));
                 return { ran: true, success: false };
@@ -73,13 +76,54 @@ async function runNpmHook(
         }
     }
 
-    // 2. Check for custom regex-based hooks (pre:cmd_pattern:arg_pattern)
-    const hookPrefix = `${hookType}:`; // Prefix is 'pre:' or 'post:'
+    // --- 2. Check standard hook + arg pattern (e.g., prerun:deploy\w+) ---
+    const standardHookPrefix = `${standardHookName}:`; // e.g., 'prerun:'
+    if (actualArg !== undefined) { // Only check this if an argument was actually passed
+        for (const scriptKey in packageJson.scripts) {
+            if (scriptKey.startsWith(standardHookPrefix)) {
+                const argPattern = scriptKey.substring(standardHookPrefix.length);
+                if (!argPattern) continue; // Skip if pattern is empty (e.g., "prerun:")
 
+                try {
+                    const argRegex = new RegExp(`^${argPattern}$`);
+                    if (argRegex.test(actualArg)) {
+                        // Found a match!
+                        const packageManager = pkgManagerService.detectPackageManager();
+                        ui.write(chalk.blue(`Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`));
+                        try {
+                            // Prepare environment for the hook script
+                            const hookEnv = { ...process.env };
+                            if (actualArg !== undefined) {
+                                hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
+                            }
+                            // Escape backslashes in the script key for shell execution
+                            const escapedScriptKey = scriptKey.replace(/\\/g, '\\\\');
+                            const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
+                            if (result.status !== 0) {
+                                ui.write(chalk.redBright(`${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`));
+                                return { ran: true, success: false };
+                            }
+                            ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`));
+                            return { ran: true, success: true }; // Executed, finish.
+                        } catch (error) {
+                            ui.write(chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`));
+                            return { ran: true, success: false };
+                        }
+                    }
+                } catch (e) {
+                    ui.write(chalk.yellow(`Warning: Invalid regex for argument pattern in script key "${scriptKey}": ${e}`));
+                    // Continue searching other keys
+                }
+            }
+        }
+    }
+
+    // --- 3. Check fully custom hooks (e.g., pre:build:.*) ---
+    const customHookPrefix = `${hookType}:`; // e.g., 'pre:'
     // Iterate through all script keys in package.json
     for (const scriptKey in packageJson.scripts) {
-        if (scriptKey.startsWith(hookPrefix)) {
-            const patternPart = scriptKey.substring(hookPrefix.length);
+        if (scriptKey.startsWith(customHookPrefix)) {
+            const patternPart = scriptKey.substring(customHookPrefix.length);
             const lastColonIndex = patternPart.lastIndexOf(':');
 
             let commandPattern: string;
@@ -121,7 +165,14 @@ async function runNpmHook(
                         const packageManager = pkgManagerService.detectPackageManager();
                         ui.write(chalk.blue(`Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (cmd_pattern: "${commandPattern}", arg_pattern: "${argPattern ?? 'null'}")...`));
                         try {
-                            const result = pkgManagerService.runCommand('run', [scriptKey]);
+                            // Prepare environment for the hook script
+                            const hookEnv = { ...process.env };
+                            if (actualArg !== undefined) {
+                                hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
+                            }
+                            // Escape backslashes in the script key for shell execution
+                            const escapedScriptKey = scriptKey.replace(/\\/g, '\\\\');
+                            const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
 
                             if (result.status !== 0) {
                                 ui.write(chalk.redBright(`${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`));
