@@ -3,9 +3,7 @@
     "version": "0.30.23",
     "description": "Framework for development of TON smart contracts",
     "main": "dist/index.js",
-    "bin": {
-        "blueprint": "dist/cli/cli.js"
-    },
+    "bin": "dist/cli/cli.js",
     "author": "TonTech",
     "license": "MIT",
     "repository": {
@@ -21,7 +19,7 @@
         "format": "prettier --write src"
     },
     "devDependencies": {
-        "@tact-lang/compiler": "^1.6.5",
+        "@tact-lang/compiler": "^1.6.7",
         "@ton-community/func-js": "^0.9.0",
         "@ton/core": "^0.59.0",
         "@ton/crypto": "^3.3.0",
@@ -31,10 +29,10 @@
         "@types/node": "^20.2.5",
         "@types/qrcode-terminal": "^0.12.0",
         "prettier": "^3.0.3",
-        "typescript": "^4.9.5"
+        "typescript": "^5.8.3"
     },
     "peerDependencies": {
-        "@tact-lang/compiler": ">=1.6.5",
+        "@tact-lang/compiler": ">=1.6.7",
         "@ton-community/func-js": ">=0.9.0",
         "@ton/core": ">=0.59.0",
         "@ton/crypto": ">=3.3.0",
