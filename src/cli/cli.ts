@@ -77,29 +77,37 @@ export async function runNpmHook(
         }
     }
 
-    // --- 2. Check standard hook + arg pattern (e.g., prerun:deploy\w+) ---
-    const standardHookPrefix = `${standardHookName}:`; // e.g., 'prerun:'
+    // --- 2. Check standard hook + arg pattern (e.g., prebuild\w+ or postbuild:\w+) ---
     if (actualArg !== undefined) { // Only check this if an argument was actually passed
         for (const scriptKey in packageJson.scripts) {
-            if (scriptKey.startsWith(standardHookPrefix)) {
-                const argPattern = scriptKey.substring(standardHookPrefix.length);
-                if (!argPattern) continue; // Skip if pattern is empty (e.g., "prerun:")
+            if (scriptKey.startsWith(standardHookName) && scriptKey !== standardHookName) {
+                // Potential match like "prebuild\w+" or "postbuild:\w+"
+                let argPattern = scriptKey.substring(standardHookName.length);
+
+                // If pattern starts with ':', remove it for regex matching
+                if (argPattern.startsWith(':')) {
+                    argPattern = argPattern.substring(1);
+                }
+
+                if (!argPattern) continue; // Skip if pattern is empty after removing colon
 
                 try {
                     const argRegex = new RegExp(`^${argPattern}$`);
                     if (argRegex.test(actualArg)) {
-                        // Found a match!
+                        // Found a match for argument pattern!
                         const packageManager = pkgManagerService.detectPackageManager();
+                        // Use the original scriptKey (e.g., "postbuild:\w+") for execution message and command
                         ui.write(chalk.blue(`Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`));
                         try {
                             // Prepare environment for the hook script
                             const hookEnv = { ...process.env };
-                            if (actualArg !== undefined) {
+                            if (actualArg !== undefined) { // Pass arg even if not used by specific hook
                                 hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
                             }
                             // Escape backslashes in the script key for shell execution
                             const escapedScriptKey = scriptKey.replace(/\\/g, '\\\\');
                             const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
+
                             if (result.status !== 0) {
                                 ui.write(chalk.redBright(`${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`));
                                 return { ran: true, success: false };
@@ -107,7 +115,7 @@ export async function runNpmHook(
                             ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`));
                             return { ran: true, success: true }; // Executed, finish.
                         } catch (error) {
-                            ui.write(chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`));
+                             ui.write(chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`));
                             return { ran: true, success: false };
                         }
                     }
@@ -253,7 +261,8 @@ async function main() {
     try {
         // --- Pre-hook execution ---
         let preHookRan = false;
-        if (command !== 'run') { // Only run pre-hook here if NOT the 'run' command
+        // Only run pre-hook here if NOT the 'run' or 'build' command
+        if (command !== 'run' && command !== 'build') { 
             const preHookResult = await runNpmHook('pre', command, args._[1], ui);
             preHookRan = preHookResult.ran;
             if (!preHookResult.success) {
@@ -266,7 +275,8 @@ async function main() {
         await runner(args, ui, runnerContext);
 
         // --- Post-hook execution ---
-        if (command !== 'run') { // Only run post-hook here if NOT the 'run' command
+        // Only run post-hook here if NOT the 'run' or 'build' command
+        if (command !== 'run' && command !== 'build') { 
             // Only run post-hook if pre-hook didn't fail (implied) and runner succeeded
             const postHookResult = await runNpmHook('post', command, args._[1], ui);
             if (!postHookResult.success) {
