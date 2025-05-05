@@ -1,14 +1,13 @@
-import { Args, Runner } from './Runner';
+import { Args, extractFirstArg, Runner } from './Runner';
 import { lstat, mkdir, open, readdir, readFile, access } from 'fs/promises';
 import path from 'path';
 import { executeTemplate, TEMPLATES_DIR } from '../template';
-import { selectOption } from '../utils';
+import {isPascalCase, selectOption, toPascalCase} from '../utils';
 import arg from 'arg';
 import { UIProvider } from '../ui/UIProvider';
 import { buildOne } from '../build';
 import { getConfig } from '../config/utils';
 import { helpArgs, helpMessages, templateTypes } from './constants';
-import { getEntityName } from '../utils/cliUtils';
 import { constants as fsConstants } from 'fs';
 
 function toSnakeCase(v: string): string {
@@ -113,15 +112,19 @@ export const create: Runner = async (args: Args, ui: UIProvider) => {
         return;
     }
 
-    const name = (await getEntityName(
-        localArgs._,
-        async () => await ui.input('Contract name (PascalCase)')
-    ))!;
+    const name =
+        extractFirstArg(localArgs)
+            ?? await ui.input('Contract name (PascalCase)');
 
     if (name.length === 0) throw new Error(`Cannot create a contract with an empty name`);
 
-    if (name.toLowerCase() === 'contract' || !/^[A-Z][a-zA-Z0-9]*$/.test(name))
-        throw new Error(`Cannot create a contract with the name '${name}'`);
+    if (name.toLowerCase() === 'contract') {
+        throw new Error(`Cannot create a contract with the reserved name 'contract'. Please choose a different name.`);
+    }
+
+    if (!isPascalCase(name)) {
+        throw new Error(`Contract name '${name}' is not in PascalCase. Please try ${toPascalCase(name)}.`);
+    }
 
     let which: string;
     const defaultType = 'tact-empty';
