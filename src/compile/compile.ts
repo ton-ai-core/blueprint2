@@ -151,7 +151,7 @@ export type CompileOpts = {
  * @returns {Promise<Cell>} A promise that resolves to the compiled contract code as a `Cell`.
  *
  * @example
- * import { compile } from '@ton/blueprint';
+ * import { compile } from '@ton-ai-core/blueprint';
  *
  * async function main() {
  *     const codeCell = await compile('Contract');

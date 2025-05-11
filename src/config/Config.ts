@@ -7,7 +7,7 @@ export interface Config {
      * Plugins can provide additional tooling.
      *
      * @example
-     * import { Config } from '@ton/blueprint';
+     * import { Config } from '@ton-ai-core/blueprint';
      * import { ScaffoldPlugin } from 'blueprint-scaffold';
      *
      * export const config: Config = {
@@ -20,7 +20,7 @@ export interface Config {
      * Specifies the target network for deployment or interaction.
      *
      * @example Custom network
-     * import { Config } from '@ton/blueprint';
+     * import { Config } from '@ton-ai-core/blueprint';
      *
      * export const config: Config = {
      *     network: {
