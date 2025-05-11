@@ -1,5 +1,5 @@
 import { Args, Runner } from './Runner';
-import { findCompiles, selectOption, selectFile } from '../utils';
+import { findContracts, selectOption } from '../utils';
 import { UIProvider } from '../ui/UIProvider';
 import arg from 'arg';
 import { buildAll, buildOne } from '../build';
@@ -15,18 +15,17 @@ export function extractBuildFile(args: Args): string | undefined {
 export async function selectContract(ui: UIProvider, hint?: string ): Promise<string>;
 export async function selectContract(ui: UIProvider, hint?: string, withAllOption?: boolean): Promise<string | string[]>;
 export async function selectContract(ui: UIProvider, hint?: string, withAllOption: boolean = false):  Promise<string | string[]> {
-    const compiles = await findCompiles();
-    const contracts = compiles.map(compile => compile.name);
-    const options = contracts.map<{ name: string; value: string }>((contract) => ({name: contract, value: contract}));
+    const contracts = await findContracts();
+    const options = contracts.map<{ name: string; value: string }>((contract) => ({ name: contract, value: contract }));
 
     if (hint) {
-        const found = compiles.find(c => c.name.toLowerCase() === hint.toLowerCase());
+        const found = contracts.find(c => c.toLowerCase() === hint.toLowerCase());
         if (!found) {
             const availableNames = contracts.join(', ');
             throw new Error(`"${hint}" not found, but available: ${availableNames}`);
         }
-        ui.write(`Using contract: ${found.name}`);
-        return found.name;
+        ui.write(`Using contract: ${found}`);
+        return found;
     }
 
     const allContractsValue = 'all_contracts';
@@ -139,7 +138,7 @@ export const build: Runner = async (args: Args, ui: UIProvider) => {
                     ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
                 }
             } catch (e) {
-                ui.write(chalk.yellowBright(`Warning: Error during post-build hook execution check: ${(e as Error).message || e}`));
+                ui.write(chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`));
             }
         }
     }
