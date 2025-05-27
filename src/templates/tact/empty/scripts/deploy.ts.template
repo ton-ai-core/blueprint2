@@ -1,9 +1,9 @@
 deploy{{name}}.ts
 import { toNano } from '@ton/core';
 import { {{name}} } from '../build/{{name}}/{{name}}_{{name}}';
-import { NetworkProvider } from '@ton/blueprint';
+import { NetworkProvider } from '@ton-ai-core/blueprint';
 
-export async function run(provider: NetworkProvider) {
+export async function run(provider: NetworkProvider) : Promise<void> {
     const {{loweredName}} = provider.open(await {{name}}.fromInit());
 
     await {{loweredName}}.send(
