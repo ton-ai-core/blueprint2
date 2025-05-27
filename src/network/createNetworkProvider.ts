@@ -531,7 +531,7 @@ class NetworkProviderImpl implements NetworkProvider {
     }
 }
 
-async function createMnemonicProvider(client: BlueprintTonClient, ui: UIProvider) {
+async function createMnemonicProvider(client: BlueprintTonClient, ui: UIProvider, network: Network) {
     const mnemonic = process.env.WALLET_MNEMONIC ?? '';
     const walletVersion = process.env.WALLET_VERSION ?? '';
     if (mnemonic.length === 0 || walletVersion.length === 0) {
@@ -545,6 +545,7 @@ async function createMnemonicProvider(client: BlueprintTonClient, ui: UIProvider
         client,
         secretKey: keyPair.secretKey,
         ui,
+        network,
     });
 }
 
@@ -629,14 +630,14 @@ class NetworkProviderBuilder {
         let provider: SendProvider;
         switch (deployUsing) {
             case 'deeplink':
-                provider = new DeeplinkProvider(this.ui);
+                provider = new DeeplinkProvider(network, this.ui);
                 break;
             case 'tonconnect':
                 if (network === 'custom') throw new Error('Tonkeeper cannot work with custom network.');
-                provider = new TonConnectProvider(new FSStorage(storagePath), this.ui);
+                provider = new TonConnectProvider(new FSStorage(storagePath), this.ui, network);
                 break;
             case 'mnemonic':
-                provider = await createMnemonicProvider(client, this.ui);
+                provider = await createMnemonicProvider(client, this.ui, network);
                 break;
             default:
                 throw new Error('Unknown deploy option');
