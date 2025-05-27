@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/ton-org/blueprint/main/logo.svg" width=400 >
+<img src="https://raw.githubusercontent.com/ton-ai-core/blueprint2/main/logo.svg" width=400 >
 
 # Blueprint
 
