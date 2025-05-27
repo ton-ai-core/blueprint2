@@ -1,16 +1,12 @@
-import { Args, Runner } from './Runner';
+import arg from 'arg';
+
 import { findContracts, selectOption } from '../utils';
 import { UIProvider } from '../ui/UIProvider';
-import arg from 'arg';
 import { buildAll, buildOne } from '../build';
 import { helpArgs, helpMessages } from './constants';
-import { getEntityName } from '../utils/cliUtils';
+import { Args, extractFirstArg, Runner } from './Runner';
 import { runNpmHook } from './cli';
 import chalk from 'chalk';
-
-export function extractBuildFile(args: Args): string | undefined {
-    return args._.length > 1 && args._[1]?.length > 0 ? args._[1] : undefined;
-}
 
 export async function selectContract(ui: UIProvider, hint?: string ): Promise<string>;
 export async function selectContract(ui: UIProvider, hint?: string, withAllOption?: boolean): Promise<string | string[]>;
@@ -84,7 +80,7 @@ export const build: Runner = async (args: Args, ui: UIProvider) => {
             ui.write(chalk.yellowBright(`Warning: Error during post-build hook execution check: ${(e as Error).message || e}`));
         }
     } else {
-        const selected = await selectContract(ui, extractBuildFile(args), true);
+        const selected = await selectContract(ui, extractFirstArg(args), true);
 
         if (typeof selected === 'string') {
             const contractName = selected;

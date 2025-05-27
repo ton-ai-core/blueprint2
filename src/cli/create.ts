@@ -9,16 +9,11 @@ import { getRootTactConfig, TactConfig, updateRootTactConfig } from '../config/t
 
 import { Args, extractFirstArg, Runner } from './Runner';
 import { executeTemplate, TEMPLATES_DIR } from '../template';
-import { isPascalCase, selectOption, toPascalCase } from '../utils';
+import { assertValidContractName, selectOption, toSnakeCase } from '../utils';
 import { UIProvider } from '../ui/UIProvider';
 import { buildOne } from '../build';
 import { helpArgs, helpMessages, templateTypes } from './constants';
 import { constants as fsConstants } from 'fs';
-
-function toSnakeCase(v: string): string {
-    const r = v.replace(/[A-Z]/g, (sub) => '_' + sub.toLowerCase());
-    return r[0] === '_' ? r.substring(1) : r;
-}
 
 async function createFile(templatePath: string, realPath: string, replaces: { [k: string]: string }) {
     const template = (await readFile(templatePath)).toString('utf-8');
@@ -144,16 +139,7 @@ export const create: Runner = async (args: Args, ui: UIProvider) => {
     }
 
     const name = extractFirstArg(localArgs) ?? (await ui.input('Contract name (PascalCase)'));
-
-    if (name.length === 0) throw new Error(`Cannot create a contract with an empty name`);
-
-    if (name.toLowerCase() === 'contract') {
-        throw new Error(`Cannot create a contract with the reserved name 'contract'. Please choose a different name.`);
-    }
-
-    if (!isPascalCase(name)) {
-        throw new Error(`Contract name '${name}' is not in PascalCase. Please try ${toPascalCase(name)}.`);
-    }
+    assertValidContractName(name);
 
     let which: string;
     const defaultType = 'tact-empty';

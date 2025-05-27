@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as dotenv from 'dotenv';
+
 dotenv.config();
 import arg from 'arg';
 import chalk from 'chalk';
@@ -10,12 +11,14 @@ import { set } from './set';
 import { test } from './test';
 import { verify } from './verify';
 import { convert } from './convert';
-import {additionalHelpMessages, help} from './help';
+import { additionalHelpMessages, help } from './help';
 import { helpMessages } from './constants';
+import { pack } from "./pack";
 import { InquirerUIProvider } from '../ui/InquirerUIProvider';
 import { argSpec, Runner, RunnerContext } from './Runner';
 import { getConfig } from '../config/utils';
-import { spawnSync } from 'child_process';
+import { rename } from './rename';
+import { snapshot } from './snapshot';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import * as pkgManagerService from '../pkgManager/service';
@@ -30,6 +33,9 @@ const runners: Record<string, Runner> = {
     help,
     verify,
     convert,
+    rename,
+    pack,
+    snapshot,
 };
 
 // Helper function to find and run npm lifecycle hooks
@@ -248,7 +254,8 @@ async function main() {
     const runner = effectiveRunners[command];
     if (!runner) {
         console.log(
-            chalk.redBright(`Error: command ${command} not found.`) + `\nRunning ${chalk.cyanBright('blueprint help')}...`
+            chalk.redBright(`Error: command ${command} not found.`) +
+                `\nRunning ${chalk.cyanBright('blueprint help')}...`,
         );
         const helpMessage = helpMessages['help'];
         console.log(helpMessage);
