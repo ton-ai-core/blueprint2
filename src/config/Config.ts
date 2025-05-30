@@ -59,9 +59,14 @@ export interface Config {
     recursiveWrappers?: boolean;
 
     /**
-     * Manifest url passed to TonConnect provider.
-     *
-     * @default https://raw.githubusercontent.com/ton-org/blueprint/main/tonconnect/manifest.json
+     * Custom manifest URL for TonConnect provider.
+     * 
+     * @example
+     * export const config: Config = {
+     *     manifestUrl: 'https://yourdomain.com/custom-manifest.json',
+     * };
+     * 
+     * @default https://raw.githubusercontent.com/ton-ai-core/blueprint2/main/tonconnect/manifest.json
      */
     manifestUrl?: string;
 }

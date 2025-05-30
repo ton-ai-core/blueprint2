@@ -239,7 +239,7 @@ Properties of the `network` object have the same semantics as the `--custom` fla
 Lite client is supported through the following configuration:
 
 ```ts
-import { Config } from '@ton/blueprint';
+import { Config } from '@ton-ai-core/blueprint';
 
 export const config: Config = {
     network: {
