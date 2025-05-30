@@ -61,7 +61,9 @@ Blueprint is an all-in-one development environment designed to enhance the proce
 * [Node.js](https://nodejs.org) with a recent version like v18. Version can be verified with `node -v`
 * IDE with TON support:
   * [Visual Studio Code](https://code.visualstudio.com/) with the [FunC plugin](https://marketplace.visualstudio.com/items?itemName=tonwhales.func-vscode), [Tolk plugin](https://marketplace.visualstudio.com/items?itemName=ton-core.tolk-vscode) or [Tact plugin](https://marketplace.visualstudio.com/items?itemName=tonstudio.vscode-tact)
-  * [IntelliJ IDEA](https://www.jetbrains.com/idea/) with the [TON Development plugin](https://plugins.jetbrains.com/plugin/23382-ton)
+  * [IntelliJ IDEA](https://www.jetbrains.com/idea/)
+    * [TON Development plugin](https://plugins.jetbrains.com/plugin/23382-ton) for FunC, Tolk and Fift
+    * [Tact plugin by TON Studio](https://plugins.jetbrains.com/plugin/27290-tact) for Tact
 
 ## Features overview
 
@@ -116,7 +118,21 @@ export async function run(provider: NetworkProvider) : Promise<void> {
   // 
 }
 ```
-3. Script can be run using `npx/yarn blueprint run <SCRIPT>` command
+3. Script can be run using `npx/yarn blueprint run <SCRIPT> [arg1, arg2, ...]` command
+
+#### Using Mnemonic Provider
+
+To run scripts using a wallet by mnemonic authentication, you need to configure your environment and use the `Mnemonic` option when running scripts.
+
+Start by adding the following environment variables to your `.env` file:
+* **`WALLET_MNEMONIC`**: Your wallet's mnemonic phrase (space-separated words).
+* **`WALLET_VERSION`**: The wallet contract version to use. Supported versions: `v1r1`, `v1r2`, `v1r3`, `v2r1`, `v2r2`, `v3r1`, `v3r2`, `v4r1`, `v4r2` (or `v4`), `v5r1`.
+
+**Optional variables:**
+* **`WALLET_ID`**: The wallet ID (can be used with versions below `v5r1`).
+* **`SUBWALLET_NUMBER`**: The subwallet number used to build the wallet ID (can be used with `v5r1` wallets).
+
+Once your environment is set up, you can use the mnemonic wallet for deployment with the appropriate configuration.
 
 ### Updating FunC version
 
@@ -217,6 +233,33 @@ npx blueprint run --custom https://toncenter.com/api/v2/jsonRPC --custom-version
 ```
 
 Properties of the `network` object have the same semantics as the `--custom` flags with respective names (see `blueprint help run`).
+
+### Liteclient Support
+
+Lite client is supported through the following configuration:
+
+```ts
+import { Config } from '@ton/blueprint';
+
+export const config: Config = {
+    network: {
+        endpoint: 'https://ton.org/testnet-global.config.json', // Use https://ton.org/global.config.json for mainnet or any custom configuration
+        version: 'liteclient',
+        type: 'testnet',
+    }
+};
+```
+
+You can also provide these parameters via CLI:
+
+```bash
+npx blueprint run \
+  --custom https://ton.org/testnet-global.config.json \
+  --custom-version liteclient \
+  --custom-type testnet
+```
+
+#### Contract Verification Using Custom Network
 
 You can also use custom network to verify contracts, like so:
 ```bash
