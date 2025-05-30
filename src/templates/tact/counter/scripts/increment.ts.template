@@ -1,6 +1,6 @@
 increment{{name}}.ts
 import { Address, toNano } from '@ton/core';
-import { {{name}} } from '../build/{{name}}/{{name}}_{{name}}';
+import { {{name}} } from '../wrappers/{{name}}';
 import { NetworkProvider, sleep } from '@ton-ai-core/blueprint';
 
 export async function run(provider: NetworkProvider, args: string[]) : Promise<void> {
