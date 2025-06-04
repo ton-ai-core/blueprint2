@@ -8,17 +8,20 @@ import {
     comment,
     Contract,
     ContractProvider,
+    ContractState,
+    Dictionary,
     openContract,
     OpenedContract,
     Sender,
     SenderArguments,
     SendMode,
+    Slice,
     StateInit,
     toNano,
     Transaction,
     TupleItem,
 } from '@ton/core';
-import { TonClient, TonClient4 } from '@ton/ton';
+import { parseFullConfig, TonClient, TonClient4 } from '@ton/ton';
 import { ContractAdapter } from '@ton-api/ton-adapter';
 import { TonApiClient } from '@ton-api/client';
 import { UIProvider } from '../ui/UIProvider';
@@ -32,7 +35,8 @@ import { MnemonicProvider } from './send/MnemonicProvider';
 import { Config } from '../config/Config';
 import { CustomNetwork } from '../config/CustomNetwork';
 import axios, { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import { WalletVersion } from "./send/wallets";
+import { Network } from './Network';
+import { WalletVersion } from './send/wallets';
 import { LiteClient, LiteRoundRobinEngine, LiteSingleEngine } from 'ton-lite-client';
 
 const TONAPI_MAINNET = "https://tonapi.io";
@@ -41,6 +45,7 @@ const MAX_TONAPI_ATTEMPTS = 5;
 
 const INITIAL_DELAY = 400;
 const MAX_ATTEMPTS = 4;
+const CONFIG_ADDRESS = Address.parse('-1:5555555555555555555555555555555555555555555555555555555555555555');
 
 export const argSpec = {
     '--mainnet': Boolean,
@@ -61,8 +66,6 @@ export const argSpec = {
 };
 
 export type Args = arg.Result<typeof argSpec>;
-
-type Network = 'mainnet' | 'testnet' | 'custom';
 
 type Explorer = 'tonscan' | 'tonviewer' | 'toncx' | 'dton';
 
@@ -284,6 +287,30 @@ class NetworkProviderImpl implements NetworkProvider {
             console.warn('Failed to verify transaction status via TonClient/TonApiClient:', error);
             return { success: true };
         }
+    }
+
+    async getConfig(address: Address = CONFIG_ADDRESS) {
+        const state = await this.getContractState(address);
+        if (state.state.type !== 'active' || !state.state.data) {
+            throw new Error('Configuration contract not active');
+        }
+
+        const paramsDict = Cell.fromBoc(state.state.data)[0]
+            .beginParse()
+            .loadRef()
+            .beginParse()
+            .loadDictDirect(Dictionary.Keys.Int(32), Dictionary.Values.Cell());
+
+        const params = new Map<number, Slice>();
+        for (const [key, value] of paramsDict) {
+            params.set(key, value.beginParse());
+        }
+
+        return parseFullConfig(params);
+    }
+
+    async getContractState(address: Address): Promise<ContractState> {
+        return await this.#tc.provider(address).getState();
     }
 
     async waitForDeploy(address: Address, attempts: number = 20, sleepDuration: number = 2000) {
