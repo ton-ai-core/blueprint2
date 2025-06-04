@@ -20,7 +20,7 @@
     },
     "devDependencies": {
         "@tact-lang/compiler": "^1.6.13",
-        "@ton-community/func-js": "^0.9.0",
+        "@ton-community/func-js": "^0.9.1",
         "@ton/core": "^0.60.1",
         "@ton/crypto": "^3.3.0",
         "@ton/tolk-js": "^0.12.0",
@@ -33,7 +33,7 @@
     },
     "peerDependencies": {
         "@tact-lang/compiler": ">=1.6.13",
-        "@ton-community/func-js": ">=0.9.0",
+        "@ton-community/func-js": ">=0.9.1",
         "@ton/core": ">=0.60.1",
         "@ton/crypto": ">=3.3.0",
         "@ton/tolk-js": ">=0.13.0",
