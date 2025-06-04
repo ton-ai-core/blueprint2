@@ -24,6 +24,13 @@ export async function selectContract(ui: UIProvider, hint?: string, withAllOptio
         return found;
     }
 
+    // If there's only one contract, automatically select it
+    if (contracts.length === 1) {
+        const contract = contracts[0];
+        ui.write(`Using contract: ${contract}`);
+        return contract;
+    }
+
     const allContractsValue = 'all_contracts';
     if (withAllOption) {
         const allContractsOption = {
