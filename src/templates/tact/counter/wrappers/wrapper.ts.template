@@ -1,2 +1,26 @@
 {{name}}.ts
+import { 
+    Address, 
+    Cell
+} from '@ton/core';
+import { 
+    {{name}} as {{name}}Wrapper
+} from '../build/{{name}}/{{name}}_{{name}}';
+
 export * from '../build/{{name}}/{{name}}_{{name}}'; 
+
+export class {{name}} extends {{name}}Wrapper {
+    constructor(address: Address, init?: {code: Cell; data: Cell}) {
+        super(address, init);
+    }
+
+    static async fromInit(id: bigint, counter: bigint): Promise<{{name}}> {
+        return {{name}}Wrapper.fromInit(id, counter) as Promise<{{name}}>;
+    }
+    
+    static fromAddress(address: Address): {{name}} {
+        return new {{name}}(address);
+    }
+
+    // ToDo: your logic here
+} 
