@@ -1,9 +1,11 @@
-import { Args, Runner } from './Runner';
-import { UIProvider } from '../ui/UIProvider';
 import { readFile, writeFile } from 'fs/promises';
 import { exec } from 'node:child_process';
 import path from 'path';
+
 import arg from 'arg';
+
+import { UIProvider } from '../ui/UIProvider';
+import { Args, Runner } from './Runner';
 import { helpArgs, helpMessages } from './constants';
 import * as pkgManagerService from '../pkgManager/service';
 
@@ -26,10 +28,10 @@ const getVersions = async (pkg: string, ui: UIProvider): Promise<string[]> => {
         if (Array.isArray(resJson)) {
             return resJson;
         } else {
-            throw new TypeError("Expected JSON array from view command, but got:\n" + stdout);
+            throw new TypeError('Expected JSON array from view command, but got:\n' + stdout);
         }
     } catch (e) {
-        ui.write("Failed to parse versions JSON:" + stdout);
+        ui.write('Failed to parse versions JSON:' + stdout);
         throw e;
     }
 };
@@ -37,20 +39,20 @@ const getVersions = async (pkg: string, ui: UIProvider): Promise<string[]> => {
 const install = (cmd: string, ui: UIProvider): Promise<void> => {
     return new Promise((resolve, reject) => {
         exec(cmd, { cwd: process.cwd() }, (error, stdout, stderr) => {
-                if (stderr) {
-                    ui.write(stderr);
-                }
-                if (stdout) {
-                    ui.write(stdout);
-                }
-                if (error) {
-                    reject(error);
-                    return;
-                }
-                resolve();
+            if (stderr) {
+                ui.write(stderr);
+            }
+            if (stdout) {
+                ui.write(stdout);
+            }
+            if (error) {
+                reject(error);
+                return;
+            }
+            resolve();
         });
     });
-}
+};
 
 export const set: Runner = async (args: Args, ui: UIProvider) => {
     const localArgs = arg(helpArgs);
@@ -92,11 +94,19 @@ export const set: Runner = async (args: Args, ui: UIProvider) => {
             await writeFile(packagePath, JSON.stringify(parsedPackage, null, 4));
 
             let installCmdString: string;
-            switch(packageManager) {
-                case 'yarn': installCmdString = 'yarn install'; break;
-                case 'pnpm': installCmdString = 'pnpm install'; break;
-                case 'bun': installCmdString = 'bun install'; break;
-                default: installCmdString = 'npm install'; break;
+            switch (packageManager) {
+                case 'yarn':
+                    installCmdString = 'yarn install';
+                    break;
+                case 'pnpm':
+                    installCmdString = 'pnpm install';
+                    break;
+                case 'bun':
+                    installCmdString = 'bun install';
+                    break;
+                default:
+                    installCmdString = 'npm install';
+                    break;
             }
 
             try {

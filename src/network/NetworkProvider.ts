@@ -1,12 +1,17 @@
 import { parseFullConfig, TonClient, TonClient4 } from '@ton/ton';
-import { Address, Cell, Contract, ContractProvider, ContractState, OpenedContract, Sender, StateInit } from '@ton/core';
+import { Address, Cell, Contract, ContractProvider, ContractState, OpenedContract, Sender } from '@ton/core';
 import { ContractAdapter } from '@ton-api/ton-adapter';
+import { LiteClient } from 'ton-lite-client';
+
 import { UIProvider } from '../ui/UIProvider';
-import { LiteClient } from "ton-lite-client";
 
 export type BlueprintTonClient = TonClient4 | TonClient | ContractAdapter | LiteClient;
 
 type BlockchainConfig = ReturnType<typeof parseFullConfig>;
+
+export interface SenderWithSendResult extends Sender {
+    readonly lastSendResult?: unknown;
+}
 
 /**
  * Interface representing a network provider for interacting with TON blockchain.
@@ -28,9 +33,9 @@ export interface NetworkProvider {
      *     })
      * }
      *
-     * @returns {Sender} The sender instance.
+     * @returns {SenderWithSendResult} The sender instance.
      */
-    sender(): Sender;
+    sender(): SenderWithSendResult;
 
     /**
      * Returns the underlying TON client API. May be [TonClient4]{@link TonClient4}, [TonClient]{@link TonClient} or [ContractAdapter]{@link ContractAdapter} (TON API)
@@ -76,6 +81,18 @@ export interface NetworkProvider {
      * @returns {Promise<void>} A promise that resolves when the contract is deployed or the attempts are exhausted.
      */
     waitForDeploy(address: Address, attempts?: number, sleepDuration?: number): Promise<void>;
+
+    /**
+     * Waits for the last transaction on the contract to be processed.
+     * Useful after sending a message to the contract to ensure it has been executed.
+     * @param {number} [attempts=20] - Maximum number of attempts to check for the last transaction.
+     * @param {number} [sleepDuration=2000] - Duration to wait between attempts, in milliseconds.
+     * @example
+     * await contract.sendDeploy(provider.sender(), toNano('0.05'));
+     * await provider.waitForLastTransaction();
+     * @returns {Promise<void>} A promise that resolves when the last transaction is confirmed or attempts are exhausted.
+     */
+    waitForLastTransaction(attempts?: number, sleepDuration?: number): Promise<void>;
 
     /**
      * Retrieves the state of a contract at the specified address.
@@ -135,4 +152,3 @@ export interface NetworkProvider {
      */
     ui(): UIProvider;
 }
-

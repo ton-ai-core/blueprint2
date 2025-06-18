@@ -1,19 +1,19 @@
 import path from 'path';
+import unixPath from 'path/posix';
 import { lstat, mkdir, open, readdir, readFile, access } from 'fs/promises';
-import arg from 'arg';
+import { constants as fsConstants } from 'fs';
 
+import arg from 'arg';
 import { Project } from '@tact-lang/compiler';
 
 import { getConfig } from '../config/utils';
 import { getRootTactConfig, TactConfig, updateRootTactConfig } from '../config/tact.config';
-
 import { Args, extractFirstArg, Runner } from './Runner';
 import { executeTemplate, TEMPLATES_DIR } from '../template';
 import { assertValidContractName, selectOption, toSnakeCase } from '../utils';
 import { UIProvider } from '../ui/UIProvider';
 import { buildOne } from '../build';
 import { helpArgs, helpMessages, templateTypes } from './constants';
-import { constants as fsConstants } from 'fs';
 
 async function createFile(templatePath: string, realPath: string, replaces: { [k: string]: string }) {
     const template = (await readFile(templatePath)).toString('utf-8');
@@ -76,19 +76,14 @@ function addToTactConfig(contractName: string, contractPath: string) {
     updateRootTactConfig(newConfig);
 }
 
-export const create: Runner = async (args: Args, ui: UIProvider) => {
-    const requiredFiles = [
-        'package.json',
-        'package-lock.json',
-        'README.md',
-        'tsconfig.json',
-    ];
+export const create: Runner = async (_args: Args, ui: UIProvider) => {
+    const requiredFiles = ['package.json', 'package-lock.json', 'README.md', 'tsconfig.json'];
     for (const file of requiredFiles) {
         try {
             await access(path.join(process.cwd(), file), fsConstants.F_OK);
         } catch {
             ui.write(
-                `\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`
+                `\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`,
             );
             return;
         }
@@ -99,19 +94,20 @@ export const create: Runner = async (args: Args, ui: UIProvider) => {
         const pkgPath = path.join(process.cwd(), 'package.json');
         const pkgRaw = await readFile(pkgPath, 'utf-8');
         const pkg = JSON.parse(pkgRaw);
-        const hasBlueprint = (
+        const hasBlueprint =
             (pkg.dependencies && pkg.dependencies['@ton-ai-core/blueprint']) ||
             (pkg.devDependencies && pkg.devDependencies['@ton-ai-core/blueprint']) ||
-            (pkg.peerDependencies && pkg.peerDependencies['@ton-ai-core/blueprint'])
-        );
+            (pkg.peerDependencies && pkg.peerDependencies['@ton-ai-core/blueprint']);
         if (!hasBlueprint) {
             ui.write(
-                `\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`
+                `\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`,
             );
             return;
         }
-    } catch (e) {
-        ui.write(`\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`);
+    } catch (_e) {
+        ui.write(
+            `\nBefore using 'npx blueprint create', you must initialize the project with 'npm create ton-ai@latest' or 'npx create-ton-ai@latest'.\n`,
+        );
         return;
     }
 
@@ -121,15 +117,15 @@ export const create: Runner = async (args: Args, ui: UIProvider) => {
             '--type': String,
             ...helpArgs,
         });
-    } catch (e) {
-        const msg = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : String(e);
+    } catch (_e) {
+        const msg = _e && typeof _e === 'object' && 'message' in _e ? (_e as any).message : String(_e);
         if (msg.includes('unknown or unexpected option')) {
             const availableFlags = ['--type', '--help'].join(', ');
             ui.write(msg);
             ui.write('Available options: ' + availableFlags);
             process.exit(1);
         } else {
-            throw e;
+            throw _e;
         }
     }
 
@@ -145,22 +141,26 @@ export const create: Runner = async (args: Args, ui: UIProvider) => {
     const defaultType = 'tact-empty';
     if (localArgs['--type']) {
         which = localArgs['--type'];
-        
-        if (!templateTypes.some(t => t.value === which)) {
-            throw new Error(`Invalid type: ${which}. Available options: ${templateTypes.map(t => t.value).join(', ')}`);
+
+        if (!templateTypes.some((t) => t.value === which)) {
+            throw new Error(
+                `Invalid type: ${which}. Available options: ${templateTypes.map((t) => t.value).join(', ')}`,
+            );
         }
     } else {
-        which = (await selectOption(templateTypes, {
-            ui,
-            msg: 'What type of contract do you want to create?',
-            hint: defaultType,
-        })).value;
+        which = (
+            await selectOption(templateTypes, {
+                ui,
+                msg: 'What type of contract do you want to create?',
+                hint: defaultType,
+            })
+        ).value;
     }
 
     const [lang, template] = which.split('-');
 
     const snakeName = toSnakeCase(name);
-    const contractPath = path.join('contracts', snakeName + '.' + getFileExtension(lang));
+    const contractPath = unixPath.join('contracts', snakeName + '.' + getFileExtension(lang));
 
     const replaces = {
         name,

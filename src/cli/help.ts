@@ -1,7 +1,6 @@
 import { UIProvider } from '../ui/UIProvider';
 import { Args, Runner } from './Runner';
 import { helpMessages } from './constants';
-import { getEntityName } from '../utils/cliUtils';
 
 export let additionalHelpMessages: Record<string, string> = {};
 

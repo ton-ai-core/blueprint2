@@ -1,7 +1,6 @@
-import { oneOrZeroOf, sleep, getExplorerLink, getExplorerTxLink } from '../utils';
+import path from 'path';
+
 import arg from 'arg';
-import { DeeplinkProvider } from './send/DeeplinkProvider';
-import { TonConnectProvider } from './send/TonConnectProvider';
 import {
     Address,
     Cell,
@@ -10,6 +9,7 @@ import {
     ContractProvider,
     ContractState,
     Dictionary,
+    loadMessage,
     openContract,
     OpenedContract,
     Sender,
@@ -24,23 +24,33 @@ import {
 import { parseFullConfig, TonClient, TonClient4 } from '@ton/ton';
 import { ContractAdapter } from '@ton-api/ton-adapter';
 import { TonApiClient } from '@ton-api/client';
+import { mnemonicToPrivateKey } from '@ton/crypto';
+import axios, { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { LiteClient, LiteRoundRobinEngine, LiteSingleEngine } from 'ton-lite-client';
+
+import {
+    getExplorerLink,
+    getTransactionLink,
+    getNormalizedExtMessageHash,
+    oneOrZeroOf,
+    sleep,
+    getExplorerTxLink,
+} from '../utils';
+import { DeeplinkProvider } from './send/DeeplinkProvider';
+import { TonConnectProvider } from './send/TonConnectProvider';
 import { UIProvider } from '../ui/UIProvider';
-import { BlueprintTonClient, NetworkProvider } from './NetworkProvider';
+import { BlueprintTonClient, NetworkProvider, SenderWithSendResult } from './NetworkProvider';
 import { SendProvider } from './send/SendProvider';
 import { FSStorage } from './storage/FSStorage';
-import path from 'path';
 import { TEMP_DIR } from '../paths';
-import { mnemonicToPrivateKey } from '@ton/crypto';
 import { MnemonicProvider } from './send/MnemonicProvider';
 import { Config } from '../config/Config';
 import { CustomNetwork } from '../config/CustomNetwork';
-import axios, { AxiosAdapter, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { Network } from './Network';
 import { WalletVersion } from './send/wallets';
-import { LiteClient, LiteRoundRobinEngine, LiteSingleEngine } from 'ton-lite-client';
 
-const TONAPI_MAINNET = "https://tonapi.io";
-const TONAPI_TESTNET = "https://testnet.tonapi.io";
+const TONAPI_MAINNET = 'https://tonapi.io';
+const TONAPI_TESTNET = 'https://testnet.tonapi.io';
 const MAX_TONAPI_ATTEMPTS = 5;
 
 const INITIAL_DELAY = 400;
@@ -71,9 +81,35 @@ type Explorer = 'tonscan' | 'tonviewer' | 'toncx' | 'dton';
 
 type ContractProviderFactory = (params: { address: Address; init?: StateInit | null }) => ContractProvider;
 
-class SendProviderSender implements Sender {
+// Расширяем тип ContractAdapter, добавляя отсутствующие свойства
+interface ExtendedTonApiClient {
+    blockchain: {
+        getAccountTransactions: (address: string, options: { limit: number }) => Promise<{ transactions: any[] }>;
+    };
+}
+
+interface ExtendedContractAdapter extends ContractAdapter {
+    client: ExtendedTonApiClient;
+}
+
+// Изменяем подход к типизации TonClient, вместо расширения интерфейса используем привидение типа
+type _TransactionOptions = {
+    limit: number;
+    lt?: string;
+    hash?: string;
+    to_lt?: string;
+    inclusive?: boolean;
+    archival?: boolean;
+};
+
+class SendProviderSender implements SenderWithSendResult {
     #provider: SendProvider;
     readonly address?: Address;
+
+    #lastSendResult?: unknown;
+    get lastSendResult() {
+        return this.#lastSendResult;
+    }
 
     constructor(provider: SendProvider) {
         this.#provider = provider;
@@ -92,7 +128,12 @@ class SendProviderSender implements Sender {
             throw new Error('Deployer sender does not support `sendMode` other than `PAY_GAS_SEPARATELY`');
         }
 
-        await this.#provider.sendTransaction(args.to, args.value, args.body ?? undefined, args.init ?? undefined);
+        this.#lastSendResult = await this.#provider.sendTransaction(
+            args.to,
+            args.value,
+            args.body ?? undefined,
+            args.init ?? undefined,
+        );
     }
 }
 
@@ -156,12 +197,18 @@ class WrappedContractProvider implements ContractProvider {
 
 class NetworkProviderImpl implements NetworkProvider {
     #tc: BlueprintTonClient;
-    #sender: Sender;
+    #sender: SenderWithSendResult;
     #network: Network;
     #explorer: Explorer;
     #ui: UIProvider;
 
-    constructor(tc: BlueprintTonClient, sender: Sender, network: Network, explorer: Explorer, ui: UIProvider) {
+    constructor(
+        tc: BlueprintTonClient,
+        sender: SenderWithSendResult,
+        network: Network,
+        explorer: Explorer,
+        ui: UIProvider,
+    ) {
         this.#tc = tc;
         this.#sender = sender;
         this.#network = network;
@@ -177,7 +224,7 @@ class NetworkProviderImpl implements NetworkProvider {
         return this.#explorer;
     }
 
-    sender(): Sender {
+    sender(): SenderWithSendResult {
         return this.#sender;
     }
 
@@ -212,21 +259,37 @@ class NetworkProviderImpl implements NetworkProvider {
             if (client instanceof ContractAdapter) {
                 while (attempts < MAX_TONAPI_ATTEMPTS) {
                     try {
-                        // @ts-ignore
-                        const resp = await client.client.blockchain.getAccountTransactions(address.toString(), { limit });
+                        const extendedClient = client as ExtendedContractAdapter;
+                        const resp = await extendedClient.client.blockchain.getAccountTransactions(address.toString(), {
+                            limit,
+                        });
                         txs = resp.transactions || [];
                         if (txs.length > 0) break;
-                    } catch (e) {}
+                    } catch (_e) {
+                        // Игнорируем ошибку и повторяем попытку
+                    }
                     await sleep(2000);
                     attempts++;
                 }
             } else if (client instanceof TonClient || client instanceof TonClient4) {
                 while (attempts < MAX_TONAPI_ATTEMPTS) {
                     try {
-                        // @ts-ignore
-                        txs = await client.getTransactions(address, 0n, Buffer.alloc(32), limit);
+                        // Вместо приведения типов используем проверенный метод с правильными аргументами
+                        // TonClient и TonClient4 имеют разные сигнатуры для getTransactions
+                        if (client instanceof TonClient) {
+                            txs = await client.getTransactions(address, {
+                                limit,
+                                // Другие параметры могут быть добавлены при необходимости
+                            });
+                        } else {
+                            // Для TonClient4 или других клиентов используем any для обхода типизации
+                            // т.к. нет уверенности в том, какой метод доступен
+                            txs = await (client as any).getTransactions(address, 0n, Buffer.alloc(32), limit);
+                        }
                         if (txs.length > 0) break;
-                    } catch (e) {}
+                    } catch (_e) {
+                        // Игнорируем ошибку и повторяем попытку
+                    }
                     await sleep(2000);
                     attempts++;
                 }
@@ -238,25 +301,25 @@ class NetworkProviderImpl implements NetworkProvider {
                 const tx = txs[0];
                 const exitCode = tx.compute?.exit_code;
                 const exitArg = tx.compute?.exit_arg;
-                
+
                 let txHash = tx.hash || tx.transaction_id?.hash;
                 if (typeof txHash === 'function') {
                     try {
                         txHash = txHash().toString('hex');
-                    } catch (e) {
+                    } catch (_e) {
                         txHash = null;
                     }
                 }
-                
+
                 let lt = tx.lt || tx.transaction_id?.lt;
                 if (typeof lt === 'function') {
                     try {
                         lt = lt();
-                    } catch (e) {
+                    } catch (_e) {
                         lt = null;
                     }
                 }
-                
+
                 const timestamp = tx.utime || tx.timestamp;
                 const fees = tx.total_fees || tx.fees;
                 const status = tx.status;
@@ -264,7 +327,10 @@ class NetworkProviderImpl implements NetworkProvider {
                 if (txHash && this.#network && this.#explorer) {
                     explorerTxLink = getExplorerTxLink(txHash, this.#network, this.#explorer);
                 }
-                if ((typeof status === 'string' && status === 'failed') || (exitCode !== undefined && exitCode !== 0 && exitCode !== 1)) {
+                if (
+                    (typeof status === 'string' && status === 'failed') ||
+                    (exitCode !== undefined && exitCode !== 0 && exitCode !== 1)
+                ) {
                     let errorMsg = `Transaction failed.\n`;
                     errorMsg += `Exit code: ${exitCode ?? 'unknown'}\n`;
                     if (exitArg !== undefined) errorMsg += `Exit arg: ${exitArg}\n`;
@@ -277,7 +343,7 @@ class NetworkProviderImpl implements NetworkProvider {
                     return {
                         success: false,
                         error: errorMsg,
-                        tx: tx
+                        tx: tx,
                     };
                 }
                 return { success: true, tx: tx };
@@ -321,19 +387,19 @@ class NetworkProviderImpl implements NetworkProvider {
         for (let i = 1; i <= attempts; i++) {
             this.#ui.setActionPrompt(`Awaiting contract deployment... [Attempt ${i}/${attempts}]`);
             const isDeployed = await this.isContractDeployed(address);
-            
+
             if (isDeployed) {
                 this.#ui.setActionPrompt(`Contract detected. Waiting for transaction confirmation...`);
                 await sleep(3000);
-                
+
                 const txStatus = await this.verifyTransactionStatus(address);
-                
+
                 if (!txStatus.success) {
                     this.#ui.clearActionPrompt();
                     this.#ui.write(`⚠️ Contract deployed but transaction failed:\n${txStatus.error}`);
                     throw new Error(`Transaction failed:\n${txStatus.error}`);
                 }
-                
+
                 this.#ui.clearActionPrompt();
                 this.#ui.write(`✅ Contract deployed at address ${address.toString()}`);
                 this.#ui.write(
@@ -341,25 +407,27 @@ class NetworkProviderImpl implements NetworkProvider {
                 );
                 if (txStatus.tx) {
                     const tx = txStatus.tx;
-                    
+
                     let txHash = tx.hash || tx.transaction_id?.hash;
                     if (typeof txHash === 'function') {
                         try {
                             txHash = txHash().toString('hex');
-                        } catch (e) {
+                        } catch (_e) {
                             txHash = null;
                         }
                     }
-                    
+
                     // If we have the transaction hash, check its status directly via TonAPI
                     if (txHash) {
                         this.#ui.setActionPrompt(`Verifying transaction status...`);
                         const specificTxStatus = await this.verifyTransactionByHash(txHash);
-                        
+
                         // If TonAPI returned an error for this transaction, report it
                         if (!specificTxStatus.success) {
                             this.#ui.clearActionPrompt();
-                            this.#ui.write(`⚠️ Warning: Transaction verification via TonAPI indicates problems:\n${specificTxStatus.error}`);
+                            this.#ui.write(
+                                `⚠️ Warning: Transaction verification via TonAPI indicates problems:\n${specificTxStatus.error}`,
+                            );
                             // Do not interrupt execution, as the contract is already deployed
                         } else if (specificTxStatus.tx) {
                             // If we got more accurate information, use it
@@ -369,62 +437,62 @@ class NetworkProviderImpl implements NetworkProvider {
                             tx.aborted = specificTxStatus.tx.aborted;
                             // Update detailed information if available
                             if (specificTxStatus.tx.fees) tx.fees = specificTxStatus.tx.fees;
-                            if (specificTxStatus.tx.utime) tx.utime = specificTxStatus.tx.utime; 
+                            if (specificTxStatus.tx.utime) tx.utime = specificTxStatus.tx.utime;
                         }
                         this.#ui.clearActionPrompt();
                     }
-                    
+
                     let lt = tx.lt || tx.transaction_id?.lt;
                     if (typeof lt === 'function') {
                         try {
                             lt = lt();
-                        } catch (e) {
+                        } catch (_e) {
                             lt = null;
                         }
                     }
-                    
+
                     const timestamp = tx.utime || tx.timestamp;
                     const fees = tx.total_fees || tx.fees;
                     let explorerTxLink = '';
                     if (txHash && this.#network && this.#explorer) {
                         explorerTxLink = getExplorerTxLink(txHash, this.#network, this.#explorer);
                     }
-                    
+
                     // Form detailed transaction information
                     let info = '';
                     if (txHash) info += `Tx hash: ${txHash}\n`;
                     if (lt) info += `LT: ${lt}\n`;
                     if (timestamp) info += `Timestamp: ${new Date(timestamp * 1000).toISOString()}\n`;
-                    
+
                     // Add transaction status
                     if (tx.success !== undefined) {
                         info += `Success: ${tx.success}\n`;
                     }
-                    
+
                     // Add exit code if available
                     if (tx.compute?.exit_code !== undefined) {
                         info += `Exit code: ${tx.compute.exit_code}\n`;
                     }
-                    
+
                     // Add status (nonexist → active and so on)
                     if (tx.status) {
                         info += `Status: ${tx.status}\n`;
                     }
-                    
+
                     // Add aborted flag
                     if (tx.aborted !== undefined) {
                         info += `Aborted: ${tx.aborted}\n`;
                     }
-                    
+
                     // Add information about gas and VM steps
                     if (tx.compute?.gas_used) {
                         info += `Gas used: ${tx.compute.gas_used}\n`;
                     }
-                    
+
                     if (tx.compute?.vm_steps) {
                         info += `VM steps: ${tx.compute.vm_steps}\n`;
                     }
-                    
+
                     // Add detailed information about fees
                     if (fees) {
                         if (typeof fees === 'object') {
@@ -432,12 +500,13 @@ class NetworkProviderImpl implements NetworkProvider {
                             if (fees.gas_fee) info += `Gas fee: ${fees.gas_fee}\n`;
                             if (fees.storage_fee) info += `Storage fee: ${fees.storage_fee}\n`;
                             if (fees.forward_fee) info += `Forward fee: ${fees.forward_fee}\n`;
-                            if (fees.total_fee || fees.total_fees) info += `Total fee: ${fees.total_fee || fees.total_fees}\n`;
+                            if (fees.total_fee || fees.total_fees)
+                                info += `Total fee: ${fees.total_fee || fees.total_fees}\n`;
                         } else {
                             info += `Fees: ${fees}\n`;
                         }
                     }
-                    
+
                     if (explorerTxLink) info += `Explorer: ${explorerTxLink}\n`;
                     if (info) this.#ui.write(info);
                 }
@@ -448,6 +517,105 @@ class NetworkProviderImpl implements NetworkProvider {
 
         this.#ui.clearActionPrompt();
         throw new Error("Contract was not deployed. Check your wallet's transactions");
+    }
+
+    private obtainInMessageHash() {
+        const { lastSendResult } = this.#sender;
+        if (
+            typeof lastSendResult === 'object' &&
+            lastSendResult !== null &&
+            'boc' in lastSendResult &&
+            typeof lastSendResult.boc === 'string'
+        ) {
+            const cell = Cell.fromBase64(lastSendResult.boc);
+            const extMessage = loadMessage(cell.beginParse());
+            return getNormalizedExtMessageHash(extMessage);
+        }
+
+        throw new Error('Not implemented');
+    }
+
+    private async getLastTransactions(address: Address): Promise<Transaction[]> {
+        if (this.#tc instanceof TonClient) {
+            return this.#tc.getTransactions(address, { limit: 100, archival: true }); // without archival not working with tonclient
+        }
+
+        const provider = this.#tc.provider(address);
+        const { last } = await provider.getState();
+        if (!last) {
+            return [];
+        }
+
+        return provider.getTransactions(address, last.lt, last.hash);
+    }
+
+    private async isTransactionApplied(
+        address: Address,
+        targetInMessageHash: Buffer,
+    ): Promise<{ isApplied: false } | { isApplied: true; transaction: Transaction }> {
+        const provider = this.#tc.provider(address);
+        const { last } = await provider.getState();
+        if (!last) {
+            return { isApplied: false };
+        }
+
+        let lastTxs: Transaction[];
+        try {
+            lastTxs = await this.getLastTransactions(address);
+        } catch (_) {
+            return { isApplied: false };
+        }
+
+        for (const transaction of lastTxs) {
+            if (transaction.inMessage?.info.type !== 'external-in') {
+                continue;
+            }
+            const inMessageHash = getNormalizedExtMessageHash(transaction.inMessage);
+            if (inMessageHash.equals(targetInMessageHash)) {
+                return { isApplied: true, transaction };
+            }
+        }
+
+        return { isApplied: false };
+    }
+
+    async waitForLastTransaction(waitAttempts: number = 20, sleepDuration: number = 2000): Promise<void> {
+        let attempts = waitAttempts;
+
+        if (attempts <= 0) {
+            throw new Error('Attempt number must be positive');
+        }
+        if (!this.#sender.address) {
+            throw new Error('Sender must have an address');
+        }
+
+        const inMessageHash = this.obtainInMessageHash();
+
+        for (let i = 1; i <= attempts; i++) {
+            this.#ui.setActionPrompt(`Awaiting transaction... [Attempt ${i}/${attempts}]`);
+            const result = await this.isTransactionApplied(this.#sender.address, inMessageHash);
+            if (result.isApplied) {
+                const { transaction } = result;
+                this.#ui.clearActionPrompt();
+                this.#ui.write(`Transaction ${inMessageHash.toString('hex')} successfully applied!`);
+                this.#ui.write(
+                    `You can view it at ${getTransactionLink(
+                        {
+                            ...transaction,
+                            hash: transaction.hash(),
+                            address: this.#sender.address,
+                        },
+                        this.#network,
+                        this.#explorer,
+                    )}`,
+                );
+                return;
+            }
+
+            await sleep(sleepDuration);
+        }
+
+        throw new Error("Transaction was not applied. Check your wallet's transactions");
     }
 
     /**
@@ -499,7 +667,7 @@ class NetworkProviderImpl implements NetworkProvider {
                 response = await axios.get(`${apiUrl}/v2/blockchain/transactions/${txHash}`);
             } catch (e) {
                 // Add API error details if available
-                const errorDetails = (e instanceof Error) ? e.message : String(e);
+                const errorDetails = e instanceof Error ? e.message : String(e);
                 return { success: false, error: `Transaction not found or API error: ${errorDetails}` };
             }
 
@@ -512,49 +680,50 @@ class NetworkProviderImpl implements NetworkProvider {
             const exitCode = tx.compute_phase?.exit_code; // snake_case
             const computeSuccess = tx.compute_phase?.success; // snake_case
             const txSuccessOverall = tx.success === true; // Overall transaction success
-            const isFailedCompute = (exitCode !== undefined && exitCode !== 0 && exitCode !== 1) || computeSuccess === false;
+            const isFailedCompute =
+                (exitCode !== undefined && exitCode !== 0 && exitCode !== 1) || computeSuccess === false;
             const isFailedOverall = txSuccessOverall === false;
-            
+
             // If transaction failed, create a detailed error message
             if (isFailedCompute || isFailedOverall) {
                 let errorMsg = `Transaction FAILED.\n`;
-                
+
                 // Add exit code if available
                 if (exitCode !== undefined) {
                     errorMsg += `Exit code: ${exitCode}\n`;
                 } else {
                     errorMsg += `Exit code: unknown\n`;
                 }
-                
+
                 // Add compute.success if available
                 if (computeSuccess !== undefined) {
-                     errorMsg += `Compute success: ${computeSuccess}\n`;
+                    errorMsg += `Compute success: ${computeSuccess}\n`;
                 }
-                
+
                 // Add overall transaction success
                 errorMsg += `Overall success: ${txSuccessOverall}\n`;
-                
+
                 const exitArg = tx.compute_phase?.exit_arg; // snake_case
                 if (exitArg !== undefined) errorMsg += `Exit arg: ${exitArg}\n`;
                 if (tx.status) errorMsg += `Status: ${tx.status}\n`; // Status from API
                 if (tx.aborted !== undefined) errorMsg += `Aborted: ${tx.aborted}\n`;
                 if (tx.compute_phase?.gas_used) errorMsg += `Gas used: ${tx.compute_phase.gas_used}\n`; // snake_case
                 if (tx.compute_phase?.vm_steps) errorMsg += `VM steps: ${tx.compute_phase.vm_steps}\n`; // snake_case
-                
+
                 // Add full JSON response at the end
                 errorMsg += `\n--- Full API Response: ---\n${JSON.stringify(tx, null, 2)}`;
-                
+
                 return {
                     success: false,
                     error: errorMsg,
-                    tx
+                    tx,
                 };
             }
 
             return { success: true, tx };
         } catch (error) {
             console.warn('Failed to verify transaction by hash:', error);
-            const errorDetails = (error instanceof Error) ? error.message : String(error);
+            const errorDetails = error instanceof Error ? error.message : String(error);
             return { success: false, error: `Error verifying transaction: ${errorDetails}` };
         }
     }
@@ -698,7 +867,12 @@ class NetworkProviderBuilder {
                 break;
             case 'tonconnect':
                 if (network === 'custom') throw new Error('Tonkeeper cannot work with custom network.');
-                provider = new TonConnectProvider(new FSStorage(storagePath), this.ui, network, this.config?.manifestUrl);
+                provider = new TonConnectProvider(
+                    new FSStorage(storagePath),
+                    this.ui,
+                    network,
+                    this.config?.manifestUrl,
+                );
                 break;
             case 'mnemonic':
                 provider = await createMnemonicProvider(client, this.ui, network);
@@ -820,7 +994,7 @@ class NetworkProviderBuilder {
 
         try {
             await sendProvider.connect();
-        } catch (e) {
+        } catch (_) {
             console.error('Unable to connect to wallet.');
             process.exit(1);
         } finally {

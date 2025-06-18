@@ -5,11 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.36.1] - 2025-06-17
+
+### Fixed
+
+- Fixed contract creation on Windows
+
+## [0.36.0] - 2025-06-16
 
 ### Added
 
 - Added `getConfig` and `getContractState` methods to network provider
+- Added `getNormalizedExtMessageHash` function
+- Added `NetworkProvider.waitForLastTransaction` method
+
+### Fixed
+
+- Use `Dirent.parentPath` instead of `.path` which is deprecated
+
+## [0.35.1] - 2025-06-13
+
+### Fixed
+
+- Fixed Tolk counter template 
 
 ## [0.35.0] - 2025-06-02
 

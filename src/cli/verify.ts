@@ -1,12 +1,14 @@
+import path from 'path';
+
 import { Address, Cell, Contract, ContractProvider, Dictionary, toNano } from '@ton/core';
+import arg from 'arg';
+
 import { doCompile } from '../compile/compile';
 import { UIProvider } from '../ui/UIProvider';
 import { Args, extractFirstArg, Runner, RunnerContext } from './Runner';
-import path from 'path';
 import { argSpec, createNetworkProvider } from '../network/createNetworkProvider';
 import { selectContract } from './build';
 import { sleep } from '../utils';
-import arg from 'arg';
 import { helpArgs, helpMessages } from './constants';
 
 type FuncCompilerSettings = {
@@ -48,29 +50,52 @@ type SourcesObject = {
     sources: SourceObject[];
 } & CompilerSettings;
 
-const backends: Record<
+type Backends = Record<
     'mainnet' | 'testnet',
     {
         sourceRegistry: Address;
         backends: string[];
         id: string;
     }
-> = {
-    mainnet: {
-        sourceRegistry: Address.parse('EQD-BJSVUJviud_Qv7Ymfd3qzXdrmV525e3YDzWQoHIAiInL'),
-        backends: [
-            'https://ton-source-prod-1.herokuapp.com',
-            'https://ton-source-prod-2.herokuapp.com',
-            'https://ton-source-prod-3.herokuapp.com',
-        ],
-        id: 'orbs.com',
-    },
-    testnet: {
-        sourceRegistry: Address.parse('EQCsdKYwUaXkgJkz2l0ol6qT_WxeRbE_wBCwnEybmR0u5TO8'),
-        backends: ['https://ton-source-prod-testnet-1.herokuapp.com'],
-        id: 'orbs-testnet',
-    },
-};
+>;
+
+async function getBackends(): Promise<Backends> {
+    let backendsProd: string[];
+    let backendsTestnet: string[];
+
+    try {
+        const response = await fetch(
+            'https://raw.githubusercontent.com/ton-community/contract-verifier-config/main/config.json',
+        );
+
+        if (response.status !== 200) {
+            throw new Error(response.status + ' ' + response.statusText);
+        }
+
+        const config: {
+            backends: string[];
+            backendsTestnet: string[];
+        } = await response.json();
+
+        backendsProd = config.backends;
+        backendsTestnet = config.backendsTestnet;
+    } catch (e) {
+        throw new Error('Unable to fetch contract verifer backends: ' + e);
+    }
+
+    return {
+        mainnet: {
+            sourceRegistry: Address.parse('EQD-BJSVUJviud_Qv7Ymfd3qzXdrmV525e3YDzWQoHIAiInL'),
+            backends: backendsProd,
+            id: 'orbs.com',
+        },
+        testnet: {
+            sourceRegistry: Address.parse('EQCsdKYwUaXkgJkz2l0ol6qT_WxeRbE_wBCwnEybmR0u5TO8'),
+            backends: backendsTestnet,
+            id: 'orbs-testnet',
+        },
+    };
+}
 
 function removeRandom<T>(els: T[]): T {
     return els.splice(Math.floor(Math.random() * els.length), 1)[0];
@@ -173,7 +198,7 @@ async function lookupCodeHash(hash: Buffer, ui: UIProvider, retryCount: number =
     return foundAddr;
 }
 
-export const verify: Runner = async (args: Args, ui: UIProvider, context: RunnerContext) => {
+export const verify: Runner = async (_args: Args, ui: UIProvider, context: RunnerContext) => {
     const localArgs = arg({ ...argSpec, ...helpArgs });
     if (localArgs['--help']) {
         ui.write(helpMessages['verify']);
@@ -314,6 +339,7 @@ export const verify: Runner = async (args: Args, ui: UIProvider, context: Runner
         'blob',
     );
 
+    const backends = await getBackends();
     const backend = backends[network];
 
     const sourceRegistry = networkProvider.open(new SourceRegistry(backend.sourceRegistry));

@@ -25,7 +25,7 @@ export function detectPackageManager(): PackageManager {
             detectedPackageManager = pm;
             return pm;
         }
-         if (pm === 'npm') {
+        if (pm === 'npm') {
             detectedPackageManager = pm;
             return pm;
         }
@@ -41,7 +41,7 @@ export function detectPackageManager(): PackageManager {
         detectedPackageManager = 'pnpm';
         return 'pnpm';
     }
-     if (existsSync(path.join(CWD, 'bun.lockb'))) {
+    if (existsSync(path.join(CWD, 'bun.lockb'))) {
         detectedPackageManager = 'bun';
         return 'bun';
     }
@@ -61,7 +61,7 @@ export function detectPackageManager(): PackageManager {
 export function runCommand(
     command: CommandType,
     args: string[],
-    options?: SpawnSyncOptions
+    options?: SpawnSyncOptions,
 ): SpawnSyncReturns<string | Buffer> {
     const pm = detectPackageManager();
     let effectiveArgs: string[] = [];
@@ -85,16 +85,22 @@ export function runCommand(
             // npm view <pkg> versions --json
             // pnpm view <pkg> versions --json (Check if --json is supported)
             // bun ?? (bun pm versions <pkg> doesn't seem to have json output yet) - Falling back to npm for bun view
-             if (pm === 'yarn') {
-                 effectiveArgs = ['info', ...args]; // yarn info expects slightly different args structure
-             } else if (pm === 'bun') {
-                 // Bun's view equivalent lacks JSON output, using npm as fallback for now
-                 console.warn("Warning: 'bun view' equivalent with JSON output not available, using 'npm view' as fallback.");
-                 return spawnSync('npm', ['view', ...args], { stdio: 'pipe', ...options, cwd: options?.cwd ?? process.cwd(), shell: true });
-             }
-              else {
-                 effectiveArgs = ['view', ...args];
-             }
+            if (pm === 'yarn') {
+                effectiveArgs = ['info', ...args]; // yarn info expects slightly different args structure
+            } else if (pm === 'bun') {
+                // Bun's view equivalent lacks JSON output, using npm as fallback for now
+                console.warn(
+                    "Warning: 'bun view' equivalent with JSON output not available, using 'npm view' as fallback.",
+                );
+                return spawnSync('npm', ['view', ...args], {
+                    stdio: 'pipe',
+                    ...options,
+                    cwd: options?.cwd ?? process.cwd(),
+                    shell: true,
+                });
+            } else {
+                effectiveArgs = ['view', ...args];
+            }
             break;
         default:
             throw new Error(`Unsupported command type: ${command}`);
@@ -102,16 +108,15 @@ export function runCommand(
 
     const defaultOptions: SpawnSyncOptions = {
         stdio: 'inherit', // Default to inherit for visibility
-        shell: true,      // Often needed for `run` scripts
+        shell: true, // Often needed for `run` scripts
         cwd: process.cwd(),
-        ...options,       // Allow overriding defaults
+        ...options, // Allow overriding defaults
     };
 
     // Ensure stdio is 'pipe' if we need to capture output (e.g., for 'view')
     if (command === 'view' && defaultOptions.stdio === 'inherit') {
         defaultOptions.stdio = 'pipe';
     }
-
 
     // console.log(`Running command: ${pm} ${effectiveArgs.join(' ')}`); // For debugging
     const result = spawnSync(pm, effectiveArgs, defaultOptions);
@@ -133,4 +138,4 @@ export function runCommand(
 export function getOverrideKey(): 'resolutions' | 'overrides' {
     const pm = detectPackageManager();
     return pm === 'yarn' ? 'resolutions' : 'overrides';
-} 
+}

@@ -60,12 +60,12 @@ export interface Config {
 
     /**
      * Custom manifest URL for TonConnect provider.
-     * 
+     *
      * @example
      * export const config: Config = {
      *     manifestUrl: 'https://yourdomain.com/custom-manifest.json',
      * };
-     * 
+     *
      * @default https://raw.githubusercontent.com/ton-ai-core/blueprint2/main/tonconnect/manifest.json
      */
     manifestUrl?: string;

@@ -1,25 +1,27 @@
-import { Args, Runner, RunnerContext } from './Runner';
+import { execSync as _execSync } from 'child_process';
+import process from 'process';
+
+import arg from 'arg';
+import chalk from 'chalk';
+
+import { Args, extractFirstArg as _extractFirstArg, Runner, RunnerContext } from './Runner';
 import { createNetworkProvider, argSpec } from '../network/createNetworkProvider';
 import { findScripts, selectFile } from '../utils';
 import { getEntityName } from '../utils/cliUtils';
 import { UIProvider } from '../ui/UIProvider';
-import arg from 'arg';
 import { helpArgs, helpMessages } from './constants';
-import { execSync } from 'child_process';
-import process from 'process';
-import * as pkgManagerService from '../pkgManager/service';
-import chalk from 'chalk';
+import * as _pkgManagerService from '../pkgManager/service';
 import { runNpmHook } from './cli';
 
-export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerContext) => {
+export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerContext) => {
     let localArgs: Args;
     try {
-        localArgs = arg({ 
-            ...argSpec, 
-            ...helpArgs 
+        localArgs = arg({
+            ...argSpec,
+            ...helpArgs,
         });
     } catch (e) {
-        const msg = (e && typeof e === 'object' && 'message' in e) ? (e as any).message : String(e);
+        const msg = e && typeof e === 'object' && 'message' in e ? (e as any).message : String(e);
         if (msg.includes('unknown or unexpected option')) {
             const availableFlags = Object.keys(argSpec).join(', ');
             ui.write(msg);
@@ -36,7 +38,7 @@ export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerCon
 
     const scriptName: string | undefined = await getEntityName(
         localArgs._,
-        undefined // Interactive mode is not needed here, selectFile handles it
+        undefined, // Interactive mode is not needed here, selectFile handles it
     );
     const selectedFile = await selectFile(await findScripts(), {
         ui,
@@ -59,8 +61,8 @@ export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerCon
             process.exit(1); // Abort if pre-hook failed
         }
     } catch (e) {
-         ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
-         process.exit(1);
+        ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
+        process.exit(1);
     }
     // --- End Pre-hook ---
 
@@ -75,17 +77,18 @@ export const run: Runner = async (args: Args, ui: UIProvider, context: RunnerCon
         ui.write(chalk.gray(`Script ${finalScriptName} executed successfully. Checking for post-hook...`));
         // --- Post-hook Execution (Moved Here) ---
         try {
-             const postHookResult = await runNpmHook('post', 'run', finalScriptName, ui);
-             if (!postHookResult.success) {
-                 // Don't exit, just warn if post-hook fails
-                 ui.write(chalk.yellowBright(`Warning: post-run:${finalScriptName} hook script failed.`));
-             }
+            const postHookResult = await runNpmHook('post', 'run', finalScriptName, ui);
+            if (!postHookResult.success) {
+                // Don't exit, just warn if post-hook fails
+                ui.write(chalk.yellowBright(`Warning: post-run:${finalScriptName} hook script failed.`));
+            }
         } catch (e) {
-            ui.write(chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`));
+            ui.write(
+                chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`),
+            );
         }
         // --- End Post-hook ---
-
-    } catch(e) {
+    } catch (e) {
         ui.write(chalk.redBright(`Error executing script ${finalScriptName}: ${(e as Error).message || e}`));
         process.exit(1);
     }

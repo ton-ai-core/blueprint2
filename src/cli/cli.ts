@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-import * as dotenv from 'dotenv';
+import path from 'path';
+import { readFile } from 'fs/promises';
 
-dotenv.config();
+import * as dotenv from 'dotenv';
 import arg from 'arg';
 import chalk from 'chalk';
+
+dotenv.config();
+
+import { snapshot } from './snapshot';
 import { create } from './create';
 import { run } from './run';
 import { build } from './build';
@@ -13,14 +18,11 @@ import { verify } from './verify';
 import { convert } from './convert';
 import { additionalHelpMessages, help } from './help';
 import { helpMessages } from './constants';
-import { pack } from "./pack";
+import { pack } from './pack';
 import { InquirerUIProvider } from '../ui/InquirerUIProvider';
 import { argSpec, Runner, RunnerContext } from './Runner';
 import { getConfig } from '../config/utils';
 import { rename } from './rename';
-import { snapshot } from './snapshot';
-import { readFile } from 'fs/promises';
-import path from 'path';
 import * as pkgManagerService from '../pkgManager/service';
 import { UIProvider } from '../ui/UIProvider';
 
@@ -42,17 +44,16 @@ const runners: Record<string, Runner> = {
 // Checks standard hooks first, then standard hooks with arg patterns, then fully custom hooks.
 export async function runNpmHook(
     hookType: 'pre' | 'post',
-    actualCommand: string,       // The actual command invoked (e.g., 'run', 'build')
+    actualCommand: string, // The actual command invoked (e.g., 'run', 'build')
     actualArg: string | undefined, // The actual first argument passed (e.g., 'deploy-staging')
-    ui: UIProvider
+    ui: UIProvider,
 ): Promise<{ ran: boolean; success: boolean }> {
-
     let packageJson: any;
     try {
         const packageJsonPath = path.join(process.cwd(), 'package.json');
         const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
         packageJson = JSON.parse(packageJsonContent);
-    } catch (error) {
+    } catch (_error) {
         return { ran: false, success: true }; // Ignore if no package.json
     }
 
@@ -65,26 +66,41 @@ export async function runNpmHook(
     if (actualArg === undefined && packageJson.scripts[standardHookName]) {
         // Standard hook exists and no argument was passed
         const packageManager = pkgManagerService.detectPackageManager();
-        ui.write(chalk.blue(`Executing standard ${hookType}-hook: ${chalk.bold(`${packageManager} run ${standardHookName}`)}...`));
+        ui.write(
+            chalk.blue(
+                `Executing standard ${hookType}-hook: ${chalk.bold(`${packageManager} run ${standardHookName}`)}...`,
+            ),
+        );
         try {
             // Standard hooks likely don't contain regex chars, but escaping doesn't hurt
             const escapedStandardHookName = standardHookName.replace(/\\/g, '\\\\');
             // No argument to pass for standard hooks triggered without args
             const result = pkgManagerService.runCommand('run', [escapedStandardHookName]);
             if (result.status !== 0) {
-                ui.write(chalk.redBright(`Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${result.status}.`));
+                ui.write(
+                    chalk.redBright(
+                        `Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${result.status}.`,
+                    ),
+                );
                 return { ran: true, success: false };
             }
-            ui.write(chalk.green(`Standard ${hookType}-hook script "${standardHookName}" finished successfully using ${packageManager}.`));
+            ui.write(
+                chalk.green(
+                    `Standard ${hookType}-hook script "${standardHookName}" finished successfully using ${packageManager}.`,
+                ),
+            );
             return { ran: true, success: true }; // Standard hook executed, finish.
         } catch (error) {
-            ui.write(chalk.redBright(`Failed to execute standard ${hookType}-hook script "${standardHookName}": ${error}`));
+            ui.write(
+                chalk.redBright(`Failed to execute standard ${hookType}-hook script "${standardHookName}": ${error}`),
+            );
             return { ran: true, success: false };
         }
     }
 
     // --- 2. Check standard hook + arg pattern (e.g., prebuild\w+ or postbuild:\w+) ---
-    if (actualArg !== undefined) { // Only check this if an argument was actually passed
+    if (actualArg !== undefined) {
+        // Only check this if an argument was actually passed
         for (const scriptKey in packageJson.scripts) {
             if (scriptKey.startsWith(standardHookName) && scriptKey !== standardHookName) {
                 // Potential match like "prebuild\w+" or "postbuild:\w+"
@@ -103,11 +119,16 @@ export async function runNpmHook(
                         // Found a match for argument pattern!
                         const packageManager = pkgManagerService.detectPackageManager();
                         // Use the original scriptKey (e.g., "postbuild:\w+") for execution message and command
-                        ui.write(chalk.blue(`Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`));
+                        ui.write(
+                            chalk.blue(
+                                `Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`,
+                            ),
+                        );
                         try {
                             // Prepare environment for the hook script
                             const hookEnv = { ...process.env };
-                            if (actualArg !== undefined) { // Pass arg even if not used by specific hook
+                            if (actualArg !== undefined) {
+                                // Pass arg even if not used by specific hook
                                 hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
                             }
                             // Escape backslashes in the script key for shell execution
@@ -115,18 +136,30 @@ export async function runNpmHook(
                             const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
 
                             if (result.status !== 0) {
-                                ui.write(chalk.redBright(`${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`));
+                                ui.write(
+                                    chalk.redBright(
+                                        `${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`,
+                                    ),
+                                );
                                 return { ran: true, success: false };
                             }
-                            ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`));
+                            ui.write(
+                                chalk.green(
+                                    `${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`,
+                                ),
+                            );
                             return { ran: true, success: true }; // Executed, finish.
                         } catch (error) {
-                             ui.write(chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`));
+                            ui.write(
+                                chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`),
+                            );
                             return { ran: true, success: false };
                         }
                     }
                 } catch (e) {
-                    ui.write(chalk.yellow(`Warning: Invalid regex for argument pattern in script key "${scriptKey}": ${e}`));
+                    ui.write(
+                        chalk.yellow(`Warning: Invalid regex for argument pattern in script key "${scriptKey}": ${e}`),
+                    );
                     // Continue searching other keys
                 }
             }
@@ -170,7 +203,11 @@ export async function runNpmHook(
                             const argRegex = new RegExp(`^${argPattern}$`);
                             argMatches = argRegex.test(actualArg);
                         } catch (e) {
-                            ui.write(chalk.yellow(`Warning: Invalid regex for argument pattern in script key "${scriptKey}": ${e}`));
+                            ui.write(
+                                chalk.yellow(
+                                    `Warning: Invalid regex for argument pattern in script key "${scriptKey}": ${e}`,
+                                ),
+                            );
                             continue; // Skip this key if arg regex is invalid
                         }
                     } // Else: argPattern exists, but no actualArg was passed -> no match
@@ -178,7 +215,11 @@ export async function runNpmHook(
                     if (argMatches) {
                         // Found the first matching hook key for both command and argument
                         const packageManager = pkgManagerService.detectPackageManager();
-                        ui.write(chalk.blue(`Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (cmd_pattern: "${commandPattern}", arg_pattern: "${argPattern ?? 'null'}")...`));
+                        ui.write(
+                            chalk.blue(
+                                `Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (cmd_pattern: "${commandPattern}", arg_pattern: "${argPattern ?? 'null'}")...`,
+                            ),
+                        );
                         try {
                             // Prepare environment for the hook script
                             const hookEnv = { ...process.env };
@@ -190,13 +231,23 @@ export async function runNpmHook(
                             const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
 
                             if (result.status !== 0) {
-                                ui.write(chalk.redBright(`${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`));
+                                ui.write(
+                                    chalk.redBright(
+                                        `${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`,
+                                    ),
+                                );
                                 return { ran: true, success: false };
                             }
-                            ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`));
+                            ui.write(
+                                chalk.green(
+                                    `${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`,
+                                ),
+                            );
                             return { ran: true, success: true }; // Return after executing the first match
                         } catch (error) {
-                            ui.write(chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`));
+                            ui.write(
+                                chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`),
+                            );
                             return { ran: true, success: false };
                         }
                     }
@@ -212,6 +263,7 @@ export async function runNpmHook(
 }
 
 async function main() {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('ts-node/register');
 
     const args = arg(argSpec, {
@@ -267,11 +319,11 @@ async function main() {
 
     try {
         // --- Pre-hook execution ---
-        let preHookRan = false;
+        let _preHookRan = false;
         // Only run pre-hook here if NOT the 'run' or 'build' command
-        if (command !== 'run' && command !== 'build') { 
+        if (command !== 'run' && command !== 'build') {
             const preHookResult = await runNpmHook('pre', command, args._[1], ui);
-            preHookRan = preHookResult.ran;
+            _preHookRan = preHookResult.ran;
             if (!preHookResult.success) {
                 ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
                 process.exit(1); // Abort if pre-hook failed
@@ -283,7 +335,7 @@ async function main() {
 
         // --- Post-hook execution ---
         // Only run post-hook here if NOT the 'run' or 'build' command
-        if (command !== 'run' && command !== 'build') { 
+        if (command !== 'run' && command !== 'build') {
             // Only run post-hook if pre-hook didn't fail (implied) and runner succeeded
             const postHookResult = await runNpmHook('post', command, args._[1], ui);
             if (!postHookResult.success) {
@@ -292,7 +344,6 @@ async function main() {
             }
         }
         // --- End Post-hook ---
-
     } catch (e) {
         if (e && typeof e === 'object' && 'message' in e) {
             console.error((e as any).message);

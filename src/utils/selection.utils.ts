@@ -6,10 +6,10 @@ import { UIProvider } from '../ui/UIProvider';
 import { getRootTactConfig } from '../config/tact.config';
 import { COMPILE_END, getCompilablesDirectory } from '../compile/compile';
 import { File } from '../types/file';
-
 import { SCRIPTS_DIR } from '../paths';
 import { distinct } from './object.utils';
 import { getConfig } from '../config/utils';
+import { extractFile } from './file.utils';
 
 export const findCompiles = async (directory?: string): Promise<File[]> => {
     const dir = directory ?? (await getCompilablesDirectory());
@@ -17,9 +17,12 @@ export const findCompiles = async (directory?: string): Promise<File[]> => {
         return [];
     }
 
-    const files = await fs.readdir(dir, { recursive: (await getConfig())?.recursiveWrappers ?? false, withFileTypes: true });
+    const files = await fs.readdir(dir, {
+        recursive: (await getConfig())?.recursiveWrappers ?? false,
+        withFileTypes: true,
+    });
     const compilables = files.filter((file) => file.isFile() && file.name.endsWith(COMPILE_END));
-    return compilables.map((file) => ({
+    return compilables.map(extractFile).map((file) => ({
         path: path.join(file.path, file.name),
         name: file.name.slice(0, file.name.length - COMPILE_END.length),
     }));
@@ -36,10 +39,14 @@ export const findContracts = async () => {
 };
 
 export const findScripts = async (): Promise<File[]> => {
-    const dirents = await fs.readdir(SCRIPTS_DIR, { recursive: true, withFileTypes: true });
+    const dirents = await fs.readdir(SCRIPTS_DIR, {
+        recursive: true,
+        withFileTypes: true,
+    });
     const scripts = dirents.filter((dirent) => dirent.isFile() && dirent.name.endsWith('.ts'));
 
     return scripts
+        .map(extractFile)
         .map((script) => ({
             name: path.join(script.path.slice(SCRIPTS_DIR.length + 1), path.parse(script.name).name),
             path: path.join(script.path, script.name),
@@ -79,7 +86,7 @@ export async function selectFile(
     if (opts.hint) {
         const found = files.find((f) => f.name.toLowerCase() === opts.hint?.toLowerCase());
         if (found === undefined) {
-            const availableNames = files.map(f => f.name).join(', ');
+            const availableNames = files.map((f) => f.name).join(', ');
             throw new Error(`"${opts.hint}" not found, but available: ${availableNames}`);
         }
         selected = found;
