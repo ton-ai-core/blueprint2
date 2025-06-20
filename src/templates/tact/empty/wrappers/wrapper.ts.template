@@ -1,7 +1,8 @@
 {{name}}.ts
 import { 
     Address, 
-    Cell
+    Cell,
+    contractAddress
 } from '@ton/core';
 import { 
     {{name}} as {{name}}Wrapper
@@ -13,7 +14,9 @@ export class {{name}} extends {{name}}Wrapper {
     }
 
     static async fromInit(): Promise<{{name}}> {
-        return {{name}}Wrapper.fromInit() as Promise<{{name}}>;
+        const __gen_init = await {{name}}Wrapper.init();
+        const address = contractAddress(0, __gen_init);
+        return new {{name}}(address, __gen_init);
     }
     
     static fromAddress(address: Address): {{name}} {
