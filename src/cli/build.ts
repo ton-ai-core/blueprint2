@@ -1,170 +1,153 @@
+import process from 'process';
+
 import arg from 'arg';
 import chalk from 'chalk';
 
 import { findContracts, selectOption } from '../utils';
 import { UIProvider } from '../ui/UIProvider';
 import { buildAll, buildOne } from '../build';
-import { helpArgs, helpMessages } from './constants';
-import { Args, extractFirstArg, Runner } from './Runner';
-import { runNpmHook } from './cli';
+import { helpMessages } from './constants';
+import { Args, extractFirstArg, Runner, RunnerContext } from './Runner';
+import { runNpmHook, checkBlueprintHooks } from './cli';
 
 export async function selectContract(ui: UIProvider, hint?: string): Promise<string>;
-export async function selectContract(
-    ui: UIProvider,
-    hint?: string,
-    withAllOption?: boolean,
-): Promise<string | string[]>;
-export async function selectContract(
-    ui: UIProvider,
-    hint?: string,
-    withAllOption: boolean = false,
-): Promise<string | string[]> {
+export async function selectContract(ui: UIProvider, hint?: string, all?: boolean): Promise<string | 'all'>;
+export async function selectContract(ui: UIProvider, hint?: string, all = false): Promise<string | 'all'> {
     const contracts = await findContracts();
-    const options = contracts.map<{ name: string; value: string }>((contract) => ({ name: contract, value: contract }));
+    const options = all
+        ? [...contracts.map((c) => ({ name: c, value: c })), { name: 'All Contracts', value: 'all' }]
+        : contracts.map((c) => ({ name: c, value: c }));
 
-    if (hint) {
-        const found = contracts.find((c) => c.toLowerCase() === hint.toLowerCase());
-        if (!found) {
-            const availableNames = contracts.join(', ');
-            throw new Error(`"${hint}" not found, but available: ${availableNames}`);
-        }
-        ui.write(`Using contract: ${found}`);
-        return found;
-    }
-
-    // If there's only one contract, automatically select it
-    if (contracts.length === 1) {
-        const contract = contracts[0];
-        ui.write(`Using contract: ${contract}`);
-        return contract;
-    }
-
-    const allContractsValue = 'all_contracts';
-    if (withAllOption) {
-        const allContractsOption = {
-            name: 'All Contracts',
-            value: allContractsValue,
-        };
-        options.push(allContractsOption);
-    }
-
-    const selectedOption = await selectOption(options, {
-        msg: 'Select contract to use',
-        ui,
-    });
-
-    if (selectedOption.value === allContractsValue) {
-        return contracts;
-    }
-
-    return selectedOption.value;
+    return (
+        await selectOption(options, {
+            ui,
+            msg: 'Select contract to build:',
+            hint,
+        })
+    ).value;
 }
 
-export const build: Runner = async (args: Args, ui: UIProvider) => {
-    const localArgs = arg({
-        '--all': Boolean,
-        ...helpArgs,
-    });
+export const build: Runner = async (_args: Args, ui: UIProvider, _context: RunnerContext) => {
+    console.log('FUNCTION CALLED: build');
+    console.log(`Parameters: args=${JSON.stringify(_args._)}`);
+    console.log(`Environment: BLUEPRINT_SCRIPT_NAME=${process.env.BLUEPRINT_SCRIPT_NAME}`);
+
+    ui.write(chalk.yellow(`DEBUG: build.ts - build function called with args: ${JSON.stringify(_args._)}`));
+
+    const localArgs = arg(
+        {
+            '--all': Boolean,
+            '--help': Boolean,
+        },
+        {
+            argv: _args._.slice(1),
+        },
+    );
+
     if (localArgs['--help']) {
         ui.write(helpMessages['build']);
         return;
     }
 
-    if (localArgs['--all']) {
-        ui.write(chalk.gray('Running build for all contracts...'));
+    if ((localArgs as any)['--all']) {
+        ui.write('Building all contracts');
         try {
+            // Устанавливаем переменную окружения для всех контрактов
+            process.env.BLUEPRINT_SCRIPT_NAME = 'all';
+            ui.write(chalk.yellow(`DEBUG: build.ts - Setting BLUEPRINT_SCRIPT_NAME to 'all'`));
+
+            // Вызываем blueprint pre-хуки
+            const blueprintPreHookResult = await checkBlueprintHooks('pre', 'build', undefined, ui);
+            ui.write(chalk.yellow(`DEBUG: build.ts - checkBlueprintHooks returned: ${blueprintPreHookResult}`));
+
+            // Вызываем стандартные npm pre-хуки
             const preHookResult = await runNpmHook('pre', 'build', undefined, ui);
             if (!preHookResult.success) {
                 ui.write(chalk.redBright('Aborting command due to pre-build hook failure.'));
                 process.exit(1);
             }
-        } catch (e) {
-            ui.write(chalk.redBright(`Error during pre-build hook execution check: ${(e as Error).message || e}`));
-            process.exit(1);
-        }
 
-        await buildAll(ui, true);
+            await buildAll(ui, true);
 
-        ui.write(chalk.magentaBright('[build.ts] buildAll finished. Preparing to check post-hook...'));
-        try {
+            // Вызываем стандартные npm post-хуки
             const postHookResult = await runNpmHook('post', 'build', undefined, ui);
             if (!postHookResult.success) {
                 ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
             }
+
+            // Вызываем blueprint post-хуки
+            const blueprintPostHookResult = await checkBlueprintHooks('post', 'build', undefined, ui);
+            ui.write(chalk.yellow(`DEBUG: build.ts - post checkBlueprintHooks returned: ${blueprintPostHookResult}`));
         } catch (e) {
-            ui.write(
-                chalk.yellowBright(
-                    `Warning: Error during post-build hook execution check: ${(e as Error).message || e}`,
-                ),
-            );
+            ui.write(chalk.redBright(`Error during build: ${(e as Error).message || e}`));
+            process.exit(1);
         }
+        return;
+    }
+
+    // Если аргументы пришли из команды action, используем их напрямую
+    // В этом случае первым аргументом будет "build", а вторым - имя контракта
+    let contractName: string | undefined;
+    if (_args._.length >= 2 && _args._[0] === 'build') {
+        contractName = _args._[1];
+        ui.write(chalk.yellow(`DEBUG: build.ts - Using contract name from action command: ${contractName}`));
     } else {
-        const selected = await selectContract(ui, extractFirstArg(args), true);
+        // Стандартный способ получения имени контракта
+        contractName = extractFirstArg(_args);
+        ui.write(chalk.yellow(`DEBUG: build.ts - Using contract name from standard flow: ${contractName}`));
+    }
 
-        if (typeof selected === 'string') {
-            const contractName = selected;
-            ui.write(chalk.gray(`Checking for pre-hook for command 'build' with argument '${contractName}'...`));
-            try {
-                const preHookResult = await runNpmHook('pre', 'build', contractName, ui);
-                if (!preHookResult.success) {
-                    ui.write(chalk.redBright(`Aborting command due to pre-build:${contractName} hook failure.`));
-                    process.exit(1);
-                }
-            } catch (e) {
-                ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
-                process.exit(1);
-            }
+    // Если имя контракта не было передано, запрашиваем его интерактивно
+    if (!contractName) {
+        contractName = await selectContract(ui, 'Select contract to build');
+        ui.write(chalk.yellow(`DEBUG: build.ts - Using contract name from interactive selection: ${contractName}`));
+    }
 
-            try {
-                await buildOne(contractName, ui);
+    ui.write(`Using contract: ${contractName}`);
 
-                ui.write(chalk.gray(`Build for ${contractName} successful. Checking for post-hook...`));
-                try {
-                    const postHookResult = await runNpmHook('post', 'build', contractName, ui);
-                    if (!postHookResult.success) {
-                        ui.write(chalk.yellowBright(`Warning: post-build:${contractName} hook script failed.`));
-                    }
-                } catch (e) {
-                    ui.write(
-                        chalk.yellowBright(
-                            `Warning: Error during post-hook execution check: ${(e as Error).message || e}`,
-                        ),
-                    );
-                }
-            } catch (e) {
-                ui.write(
-                    chalk.redBright(`Error during build execution for ${contractName}: ${(e as Error).message || e}`),
-                );
-                process.exit(1);
-            }
-        } else {
-            ui.write(chalk.gray('Running build for all contracts (selected interactively)...'));
-            try {
-                const preHookResult = await runNpmHook('pre', 'build', undefined, ui);
-                if (!preHookResult.success) {
-                    ui.write(chalk.redBright('Aborting command due to pre-build hook failure.'));
-                    process.exit(1);
-                }
-            } catch (e) {
-                ui.write(chalk.redBright(`Error during pre-build hook execution check: ${(e as Error).message || e}`));
-                process.exit(1);
-            }
+    // Передаем имя контракта в переменные окружения
+    process.env.BLUEPRINT_SCRIPT_NAME = contractName;
+    ui.write(
+        chalk.yellow(
+            `DEBUG: build.ts - Environment variable BLUEPRINT_SCRIPT_NAME set to: ${process.env.BLUEPRINT_SCRIPT_NAME}`,
+        ),
+    );
 
-            await buildAll(ui);
+    // Теперь, когда у нас есть имя контракта, вызываем pre-хуки
+    ui.write(`Checking for pre-hook for command 'build' with argument '${contractName}'...`);
+    ui.write(chalk.yellow(`DEBUG: build.ts - About to call checkBlueprintHooks with pre, build, ${contractName}`));
+    console.log(`DEBUG: build.ts - About to call checkBlueprintHooks with pre, build, ${contractName}`);
+    const blueprintPreHookResult = await checkBlueprintHooks('pre', 'build', contractName, ui);
+    console.log(`DEBUG: build.ts - checkBlueprintHooks returned: ${blueprintPreHookResult}`);
+    ui.write(chalk.yellow(`DEBUG: build.ts - checkBlueprintHooks returned: ${blueprintPreHookResult}`));
 
-            ui.write(
-                chalk.magentaBright('[build.ts] buildAll (interactive) finished. Preparing to check post-hook...'),
-            );
-            try {
-                const postHookResult = await runNpmHook('post', 'build', undefined, ui);
-                if (!postHookResult.success) {
-                    ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
-                }
-            } catch (e) {
-                ui.write(
-                    chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`),
-                );
-            }
+    ui.write(chalk.yellow(`DEBUG: build.ts - About to call runNpmHook with pre, build, ${contractName}`));
+    const preHookResult = await runNpmHook('pre', 'build', contractName, ui);
+    ui.write(chalk.yellow(`DEBUG: build.ts - runNpmHook returned: ${JSON.stringify(preHookResult)}`));
+
+    if (!preHookResult.success) {
+        ui.write(chalk.redBright(`Aborting command due to pre-build hook failure.`));
+        process.exit(1);
+    }
+
+    ui.write(`Building contract ${contractName}`);
+
+    try {
+        await buildOne(contractName, ui);
+
+        ui.write(chalk.yellow(`DEBUG: build.ts - About to call runNpmHook with post, build, ${contractName}`));
+        const postHookResult = await runNpmHook('post', 'build', contractName, ui);
+        ui.write(chalk.yellow(`DEBUG: build.ts - runNpmHook returned: ${JSON.stringify(postHookResult)}`));
+
+        if (!postHookResult.success) {
+            ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
         }
+
+        ui.write(chalk.yellow(`DEBUG: build.ts - About to call checkBlueprintHooks with post, build, ${contractName}`));
+        const blueprintPostHookResult = await checkBlueprintHooks('post', 'build', contractName, ui);
+        ui.write(chalk.yellow(`DEBUG: build.ts - checkBlueprintHooks returned: ${blueprintPostHookResult}`));
+    } catch (e) {
+        ui.write(chalk.redBright(`Error during build: ${(e as Error).message || e}`));
+        process.exit(1);
     }
 };

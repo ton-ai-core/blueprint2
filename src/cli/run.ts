@@ -1,5 +1,6 @@
 import { execSync as _execSync } from 'child_process';
 import process from 'process';
+import _path from 'path';
 
 import arg from 'arg';
 import chalk from 'chalk';
@@ -11,9 +12,14 @@ import { getEntityName } from '../utils/cliUtils';
 import { UIProvider } from '../ui/UIProvider';
 import { helpArgs, helpMessages } from './constants';
 import * as _pkgManagerService from '../pkgManager/service';
-import { runNpmHook } from './cli';
+import { runNpmHook, checkBlueprintHooks } from './cli';
 
 export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerContext) => {
+    // Отладочный вывод для проверки аргументов
+    ui.write(chalk.yellow(`DEBUG: run.ts received args: ${JSON.stringify(_args._)}`));
+    console.log(`DEBUG: run.ts received args: ${JSON.stringify(_args._)}`);
+    console.log(`DEBUG: run.ts - Environment variable BLUEPRINT_SCRIPT_NAME=${process.env.BLUEPRINT_SCRIPT_NAME}`);
+
     let localArgs: Args;
     try {
         localArgs = arg({
@@ -36,35 +42,70 @@ export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerCo
         return;
     }
 
-    const scriptName: string | undefined = await getEntityName(
-        localArgs._,
-        undefined, // Interactive mode is not needed here, selectFile handles it
-    );
-    const selectedFile = await selectFile(await findScripts(), {
-        ui,
-        hint: scriptName,
-    });
-    const finalScriptName = selectedFile.name;
-    const mod = selectedFile.module;
-
-    if (typeof mod?.run !== 'function') {
-        throw new Error(`Function \`run\` is missing in script ${finalScriptName}!`);
+    // Если аргументы пришли из команды action, используем их напрямую
+    // В этом случае первым аргументом будет "run", а вторым - имя скрипта
+    let scriptName: string | undefined;
+    if (_args._.length >= 2 && _args._[0] === 'run') {
+        scriptName = _args._[1];
+        ui.write(chalk.gray(`Using script name from action command: ${scriptName}`));
+        console.log(`DEBUG: run.ts - Using script name from action command: ${scriptName}`);
+    } else {
+        // Стандартный способ получения имени скрипта
+        scriptName = await getEntityName(
+            localArgs._,
+            undefined, // Interactive mode is not needed here, selectFile handles it
+        );
+        // Если из аргументов была получена строка, совпадающая с именем команды,
+        // сбрасываем её, чтобы перейти в интерактивный режим выбора скрипта.
+        if (scriptName === _args._[0]) {
+            scriptName = undefined;
+        }
+        console.log(`DEBUG: run.ts - Using script name from standard flow: ${scriptName}`);
     }
 
-    ui.write(chalk.gray(`Checking for pre-hook for command 'run' with argument '${finalScriptName}'...`));
-    // --- Pre-hook Execution (Moved Here) ---
-    // Run pre-hook AFTER the script name is determined
-    try {
-        const preHookResult = await runNpmHook('pre', 'run', finalScriptName, ui);
-        if (!preHookResult.success) {
-            ui.write(chalk.redBright(`Aborting command due to pre-run:${finalScriptName} hook failure.`));
-            process.exit(1); // Abort if pre-hook failed
-        }
-    } catch (e) {
-        ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
+    // Если имя скрипта не было передано, запрашиваем его интерактивно
+    if (!scriptName) {
+        scriptName = (
+            await selectFile(await findScripts(), {
+                ui,
+                hint: scriptName,
+            })
+        ).name;
+        console.log(`DEBUG: run.ts - Using script name from interactive selection: ${scriptName}`);
+    }
+
+    // Передаем имя скрипта в переменные окружения
+    process.env.BLUEPRINT_SCRIPT_NAME = scriptName;
+    console.log(`DEBUG: run.ts - Setting BLUEPRINT_SCRIPT_NAME to ${scriptName}`);
+    ui.write(
+        chalk.yellow(
+            `DEBUG: run.ts - Environment variable BLUEPRINT_SCRIPT_NAME set to: ${process.env.BLUEPRINT_SCRIPT_NAME}`,
+        ),
+    );
+
+    // Теперь, когда у нас есть имя скрипта, вызываем pre-хуки
+    ui.write(chalk.yellow(`DEBUG: run.ts - About to call checkBlueprintHooks with pre, run, ${scriptName}`));
+    console.log(`DEBUG: run.ts - About to call checkBlueprintHooks with pre, run, ${scriptName}`);
+    const blueprintPreHookResult = await checkBlueprintHooks('pre', 'run', scriptName, ui);
+    ui.write(chalk.yellow(`DEBUG: run.ts - checkBlueprintHooks returned: ${blueprintPreHookResult}`));
+    console.log(`DEBUG: run.ts - checkBlueprintHooks returned: ${blueprintPreHookResult}`);
+
+    ui.write(chalk.yellow(`DEBUG: run.ts - About to call runNpmHook with pre, run, ${scriptName}`));
+    console.log(`DEBUG: run.ts - About to call runNpmHook with pre, run, ${scriptName}`);
+    const preHookResult = await runNpmHook('pre', 'run', scriptName, ui);
+    ui.write(chalk.yellow(`DEBUG: run.ts - runNpmHook returned: ${JSON.stringify(preHookResult)}`));
+    console.log(`DEBUG: run.ts - runNpmHook returned: ${JSON.stringify(preHookResult)}`);
+
+    if (!preHookResult.success) {
+        ui.write(chalk.redBright(`Aborting command due to pre-run hook failure.`));
         process.exit(1);
     }
-    // --- End Pre-hook ---
+
+    const mod = (await selectFile(await findScripts(), { ui, hint: scriptName })).module;
+
+    if (typeof mod?.run !== 'function') {
+        throw new Error(`Function \`run\` is missing in script ${scriptName}!`);
+    }
 
     const networkProvider = await createNetworkProvider(ui, localArgs, context.config);
 
@@ -74,22 +115,23 @@ export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerCo
     try {
         await mod.run(networkProvider, scriptArgs);
 
-        ui.write(chalk.gray(`Script ${finalScriptName} executed successfully. Checking for post-hook...`));
-        // --- Post-hook Execution (Moved Here) ---
-        try {
-            const postHookResult = await runNpmHook('post', 'run', finalScriptName, ui);
-            if (!postHookResult.success) {
-                // Don't exit, just warn if post-hook fails
-                ui.write(chalk.yellowBright(`Warning: post-run:${finalScriptName} hook script failed.`));
-            }
-        } catch (e) {
-            ui.write(
-                chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`),
-            );
+        ui.write(chalk.yellow(`DEBUG: run.ts - About to call checkBlueprintHooks with post, run, ${scriptName}`));
+        console.log(`DEBUG: run.ts - About to call checkBlueprintHooks with post, run, ${scriptName}`);
+        const blueprintPostHookResult = await checkBlueprintHooks('post', 'run', scriptName, ui);
+        ui.write(chalk.yellow(`DEBUG: run.ts - checkBlueprintHooks returned: ${blueprintPostHookResult}`));
+        console.log(`DEBUG: run.ts - checkBlueprintHooks returned: ${blueprintPostHookResult}`);
+
+        ui.write(chalk.yellow(`DEBUG: run.ts - About to call runNpmHook with post, run, ${scriptName}`));
+        console.log(`DEBUG: run.ts - About to call runNpmHook with post, run, ${scriptName}`);
+        const postHookResult = await runNpmHook('post', 'run', scriptName, ui);
+        ui.write(chalk.yellow(`DEBUG: run.ts - runNpmHook returned: ${JSON.stringify(postHookResult)}`));
+        console.log(`DEBUG: run.ts - runNpmHook returned: ${JSON.stringify(postHookResult)}`);
+
+        if (!postHookResult.success) {
+            ui.write(chalk.yellowBright(`Warning: post-run hook script failed.`));
         }
-        // --- End Post-hook ---
     } catch (e) {
-        ui.write(chalk.redBright(`Error executing script ${finalScriptName}: ${(e as Error).message || e}`));
+        ui.write(chalk.redBright(`Error executing script ${scriptName}: ${(e as Error).message || e}`));
         process.exit(1);
     }
 };
