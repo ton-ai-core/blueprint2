@@ -1,5 +1,8 @@
 import path from 'path';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
+
+import chalk from 'chalk';
 
 import {
     doCompile,
@@ -87,8 +90,79 @@ async function buildContracts(contracts: string[], ui?: UIProvider) {
     }
 }
 
-export async function buildAll(ui?: UIProvider) {
-    await buildContracts(await findContracts(), ui);
+export async function buildAll(ui?: UIProvider, checkUnused: boolean = false) {
+    const contracts = await findContracts();
+
+    if (checkUnused) {
+        // Проверка на наличие неиспользуемых контрактов
+        const configuredContracts = await findContracts();
+        const contractsDir = path.join(process.cwd(), 'contracts');
+
+        if (existsSync(contractsDir)) {
+            const files = await fs.readdir(contractsDir, { withFileTypes: true });
+
+            const contractFiles = files
+                .filter(
+                    (file) =>
+                        file.isFile() &&
+                        (file.name.endsWith('.fc') || file.name.endsWith('.tact') || file.name.endsWith('.tolk')),
+                )
+                .map((file) => path.basename(file.name, path.extname(file.name)));
+
+            // Проверяем импорты в тактовых контрактах
+            const importedContracts = new Set<string>();
+
+            for (const configuredContract of configuredContracts) {
+                // Проверяем только для контрактов Tact
+                const tactConfigProjects = getRootTactConfig().projects;
+                const project = tactConfigProjects.find(
+                    (p) => p.name.toLowerCase() === configuredContract.toLowerCase(),
+                );
+
+                if (project && existsSync(project.path)) {
+                    try {
+                        const content = await fs.readFile(project.path, 'utf-8');
+                        // Ищем импорты вида import "./contract.tact";
+                        const importRegex = /import\s+["']\.\/([^"']+)\.tact["'];/g;
+                        let match;
+
+                        while ((match = importRegex.exec(content)) !== null) {
+                            const importedContract = match[1];
+                            importedContracts.add(importedContract.toLowerCase());
+                        }
+                    } catch (_e) {
+                        // Игнорируем ошибки чтения файла
+                    }
+                }
+            }
+
+            // Преобразуем имена контрактов к нижнему регистру для регистронезависимого сравнения
+            const configuredContractsLower = configuredContracts.map((c) => c.toLowerCase());
+
+            const unusedContracts = contractFiles.filter(
+                (contract) =>
+                    !configuredContractsLower.includes(contract.toLowerCase()) &&
+                    !importedContracts.has(contract.toLowerCase()),
+            );
+
+            if (unusedContracts.length > 0) {
+                ui?.write(chalk.red('\n❌ Error: The following contracts are not properly configured:'));
+                for (const contract of unusedContracts) {
+                    ui?.write(chalk.red(`  - ${contract}`));
+                }
+                ui?.write(chalk.red('\nYou should either:'));
+                ui?.write(chalk.red('  1. Add them to tact.config.json (for Tact contracts)'));
+                ui?.write(chalk.red('  2. Create a .compile.ts file for them (for other languages)'));
+                ui?.write(chalk.red('  3. Remove them if they are not needed'));
+                ui?.write('');
+
+                // Завершаем процесс с ошибкой
+                process.exit(1);
+            }
+        }
+    }
+
+    await buildContracts(contracts, ui);
 }
 
 export async function buildAllTact(ui?: UIProvider) {

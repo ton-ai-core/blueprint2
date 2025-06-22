@@ -28,6 +28,42 @@ export const findCompiles = async (directory?: string): Promise<File[]> => {
     }));
 };
 
+/**
+ * Find all physical contract files (.fc, .tact, .tolk) in the contracts directory
+ */
+export const findAllContractFiles = async (): Promise<string[]> => {
+    const contractsDir = path.join(process.cwd(), 'contracts');
+
+    if (!existsSync(contractsDir)) {
+        return [];
+    }
+
+    const allFiles: string[] = [];
+
+    // Recursively find all contract files
+    const findFiles = async (dir: string) => {
+        const files = await fs.readdir(dir, { withFileTypes: true });
+
+        for (const file of files) {
+            const filePath = path.join(dir, file.name);
+
+            if (file.isDirectory()) {
+                await findFiles(filePath);
+            } else if (
+                file.isFile() &&
+                (file.name.endsWith('.fc') || file.name.endsWith('.tact') || file.name.endsWith('.tolk'))
+            ) {
+                // Extract contract name without extension
+                const contractName = path.basename(file.name, path.extname(file.name));
+                allFiles.push(contractName);
+            }
+        }
+    };
+
+    await findFiles(contractsDir);
+    return distinct(allFiles);
+};
+
 export const findContracts = async () => {
     const compilables = await findCompiles();
     const tactRootConfig = getRootTactConfig();

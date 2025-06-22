@@ -83,7 +83,7 @@ export const build: Runner = async (args: Args, ui: UIProvider) => {
             process.exit(1);
         }
 
-        await buildAll(ui);
+        await buildAll(ui, true);
 
         ui.write(chalk.magentaBright('[build.ts] buildAll finished. Preparing to check post-hook...'));
         try {
