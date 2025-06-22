@@ -1,0 +1,5 @@
+# Игнорировать сгенерированные файлы
+build/
+node_modules/ 
+check-wrappers-tact.js
+insert-c8-ignore.js
