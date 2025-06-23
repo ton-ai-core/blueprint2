@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.2] - 2025-06-25
+
+### Added
+
+- Added support for "blueprint" section in package.json for hooks
+- CLI now executes hook scripts directly from the "blueprint" section values
+- Added support for regex patterns in hook names in the blueprint section (e.g., "prebuild\\w+")
+
 ## [0.36.1] - 2025-06-17
 
 ### Fixed

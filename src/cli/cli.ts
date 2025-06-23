@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import path from 'path';
 import { readFile } from 'fs/promises';
+import { execSync, ExecSyncOptions } from 'child_process';
 
 import * as dotenv from 'dotenv';
 import arg from 'arg';
@@ -23,7 +24,7 @@ import { InquirerUIProvider } from '../ui/InquirerUIProvider';
 import { argSpec, Runner, RunnerContext } from './Runner';
 import { getConfig } from '../config/utils';
 import { rename } from './rename';
-import * as pkgManagerService from '../pkgManager/service';
+import * as _pkgManagerService from '../pkgManager/service';
 import { UIProvider } from '../ui/UIProvider';
 
 const runners: Record<string, Runner> = {
@@ -57,39 +58,50 @@ export async function runNpmHook(
         return { ran: false, success: true }; // Ignore if no package.json
     }
 
-    if (!packageJson?.scripts) {
+    // Check scripts in "blueprint" section first
+    const scriptsSection = packageJson?.blueprint;
+
+    if (!scriptsSection) {
         return { ran: false, success: true }; // No scripts defined
     }
 
     // --- 1. Check standard hook (no arg) ---
     const standardHookName = `${hookType}${actualCommand}`;
-    if (actualArg === undefined && packageJson.scripts[standardHookName]) {
+    if (actualArg === undefined && scriptsSection[standardHookName]) {
         // Standard hook exists and no argument was passed
-        const packageManager = pkgManagerService.detectPackageManager();
         ui.write(
             chalk.blue(
-                `Executing standard ${hookType}-hook: ${chalk.bold(`${packageManager} run ${standardHookName}`)}...`,
+                `Executing standard ${hookType}-hook from blueprint section: ${chalk.bold(standardHookName)}...`,
             ),
         );
         try {
-            // Standard hooks likely don't contain regex chars, but escaping doesn't hurt
-            const escapedStandardHookName = standardHookName.replace(/\\/g, '\\\\');
-            // No argument to pass for standard hooks triggered without args
-            const result = pkgManagerService.runCommand('run', [escapedStandardHookName]);
-            if (result.status !== 0) {
-                ui.write(
-                    chalk.redBright(
-                        `Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${result.status}.`,
-                    ),
-                );
-                return { ran: true, success: false };
+            // Get the command from the blueprint section
+            const scriptContent = scriptsSection[standardHookName];
+
+            // Prepare environment for the hook script
+            const hookEnv = { ...process.env };
+
+            // Execute the command directly
+            try {
+                execSync(scriptContent, {
+                    stdio: 'inherit',
+                    env: hookEnv,
+                } as ExecSyncOptions);
+
+                ui.write(chalk.green(`Standard ${hookType}-hook script "${standardHookName}" finished successfully.`));
+                return { ran: true, success: true }; // Standard hook executed, finish.
+            } catch (error) {
+                if (error && typeof error === 'object' && 'status' in error) {
+                    const status = (error as any).status;
+                    ui.write(
+                        chalk.redBright(
+                            `Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${status}.`,
+                        ),
+                    );
+                    return { ran: true, success: false };
+                }
+                throw error;
             }
-            ui.write(
-                chalk.green(
-                    `Standard ${hookType}-hook script "${standardHookName}" finished successfully using ${packageManager}.`,
-                ),
-            );
-            return { ran: true, success: true }; // Standard hook executed, finish.
         } catch (error) {
             ui.write(
                 chalk.redBright(`Failed to execute standard ${hookType}-hook script "${standardHookName}": ${error}`),
@@ -101,7 +113,7 @@ export async function runNpmHook(
     // --- 2. Check standard hook + arg pattern (e.g., prebuild\w+ or postbuild:\w+) ---
     if (actualArg !== undefined) {
         // Only check this if an argument was actually passed
-        for (const scriptKey in packageJson.scripts) {
+        for (const scriptKey in scriptsSection) {
             if (scriptKey.startsWith(standardHookName) && scriptKey !== standardHookName) {
                 // Potential match like "prebuild\w+" or "postbuild:\w+"
                 let argPattern = scriptKey.substring(standardHookName.length);
@@ -117,38 +129,43 @@ export async function runNpmHook(
                     const argRegex = new RegExp(`^${argPattern}$`);
                     if (argRegex.test(actualArg)) {
                         // Found a match for argument pattern!
-                        const packageManager = pkgManagerService.detectPackageManager();
-                        // Use the original scriptKey (e.g., "postbuild:\w+") for execution message and command
                         ui.write(
                             chalk.blue(
-                                `Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`,
+                                `Executing matching ${hookType}-hook from blueprint section: ${chalk.bold(scriptKey)} (command: "${actualCommand}", arg_pattern: "${argPattern}")...`,
                             ),
                         );
                         try {
+                            // Get the command from the blueprint section
+                            const scriptContent = scriptsSection[scriptKey];
+
                             // Prepare environment for the hook script
                             const hookEnv = { ...process.env };
                             if (actualArg !== undefined) {
-                                // Pass arg even if not used by specific hook
+                                // Pass arg for script to use
                                 hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
                             }
-                            // Escape backslashes in the script key for shell execution
-                            const escapedScriptKey = scriptKey.replace(/\\/g, '\\\\');
-                            const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
 
-                            if (result.status !== 0) {
-                                ui.write(
-                                    chalk.redBright(
-                                        `${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`,
-                                    ),
-                                );
-                                return { ran: true, success: false };
+                            // Execute the command directly
+                            try {
+                                execSync(scriptContent, {
+                                    stdio: 'inherit',
+                                    env: hookEnv,
+                                } as ExecSyncOptions);
+
+                                ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully.`));
+                                return { ran: true, success: true }; // Executed, finish.
+                            } catch (error) {
+                                if (error && typeof error === 'object' && 'status' in error) {
+                                    const status = (error as any).status;
+                                    ui.write(
+                                        chalk.redBright(
+                                            `${hookType}-hook script "${scriptKey}" failed with exit code ${status}.`,
+                                        ),
+                                    );
+                                    return { ran: true, success: false };
+                                }
+                                throw error;
                             }
-                            ui.write(
-                                chalk.green(
-                                    `${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`,
-                                ),
-                            );
-                            return { ran: true, success: true }; // Executed, finish.
                         } catch (error) {
                             ui.write(
                                 chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`),
@@ -169,7 +186,7 @@ export async function runNpmHook(
     // --- 3. Check fully custom hooks (e.g., pre:build:.*) ---
     const customHookPrefix = `${hookType}:`; // e.g., 'pre:'
     // Iterate through all script keys in package.json
-    for (const scriptKey in packageJson.scripts) {
+    for (const scriptKey in scriptsSection) {
         if (scriptKey.startsWith(customHookPrefix)) {
             const patternPart = scriptKey.substring(customHookPrefix.length);
             const lastColonIndex = patternPart.lastIndexOf(':');
@@ -214,36 +231,42 @@ export async function runNpmHook(
 
                     if (argMatches) {
                         // Found the first matching hook key for both command and argument
-                        const packageManager = pkgManagerService.detectPackageManager();
                         ui.write(
                             chalk.blue(
-                                `Executing matching ${hookType}-hook: ${chalk.bold(`${packageManager} run ${scriptKey}`)} (cmd_pattern: "${commandPattern}", arg_pattern: "${argPattern ?? 'null'}")...`,
+                                `Executing matching ${hookType}-hook from blueprint section: ${chalk.bold(scriptKey)} (cmd_pattern: "${commandPattern}", arg_pattern: "${argPattern ?? 'null'}")...`,
                             ),
                         );
                         try {
+                            // Get the command from the blueprint section
+                            const scriptContent = scriptsSection[scriptKey];
+
                             // Prepare environment for the hook script
                             const hookEnv = { ...process.env };
                             if (actualArg !== undefined) {
                                 hookEnv.BLUEPRINT_SCRIPT_NAME = actualArg;
                             }
-                            // Escape backslashes in the script key for shell execution
-                            const escapedScriptKey = scriptKey.replace(/\\/g, '\\\\');
-                            const result = pkgManagerService.runCommand('run', [escapedScriptKey], { env: hookEnv });
 
-                            if (result.status !== 0) {
-                                ui.write(
-                                    chalk.redBright(
-                                        `${hookType}-hook script "${scriptKey}" failed with exit code ${result.status}.`,
-                                    ),
-                                );
-                                return { ran: true, success: false };
+                            // Execute the command directly
+                            try {
+                                execSync(scriptContent, {
+                                    stdio: 'inherit',
+                                    env: hookEnv,
+                                } as ExecSyncOptions);
+
+                                ui.write(chalk.green(`${hookType}-hook script "${scriptKey}" finished successfully.`));
+                                return { ran: true, success: true }; // Return after executing the first match
+                            } catch (error) {
+                                if (error && typeof error === 'object' && 'status' in error) {
+                                    const status = (error as any).status;
+                                    ui.write(
+                                        chalk.redBright(
+                                            `${hookType}-hook script "${scriptKey}" failed with exit code ${status}.`,
+                                        ),
+                                    );
+                                    return { ran: true, success: false };
+                                }
+                                throw error;
                             }
-                            ui.write(
-                                chalk.green(
-                                    `${hookType}-hook script "${scriptKey}" finished successfully using ${packageManager}.`,
-                                ),
-                            );
-                            return { ran: true, success: true }; // Return after executing the first match
                         } catch (error) {
                             ui.write(
                                 chalk.redBright(`Failed to execute ${hookType}-hook script "${scriptKey}": ${error}`),
