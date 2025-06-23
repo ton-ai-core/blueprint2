@@ -26,8 +26,10 @@ import { getConfig } from '../config/utils';
 import { rename } from './rename';
 import * as _pkgManagerService from '../pkgManager/service';
 import { UIProvider } from '../ui/UIProvider';
+import { action } from './action';
 
-const runners: Record<string, Runner> = {
+// Импортируем команды и действия отдельно
+const commands: Record<string, Runner> = {
     create,
     run,
     build,
@@ -39,6 +41,7 @@ const runners: Record<string, Runner> = {
     rename,
     pack,
     snapshot,
+    action, // Добавляем новую команду action
 };
 
 // Helper function to find and run npm lifecycle hooks
@@ -285,6 +288,80 @@ export async function runNpmHook(
     return { ran: false, success: true }; // No matching hook script found
 }
 
+/**
+ * Выполняет скрипт из package.json
+ * @returns true если скрипт был найден и выполнен, false в противном случае
+ */
+async function runPackageScript(command: string, args: string[], ui: UIProvider): Promise<boolean> {
+    try {
+        // Используем process.cwd() для определения текущей директории
+        const packageJsonPath = path.join(process.cwd(), 'package.json');
+        const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(packageJsonContent);
+
+        // Проверяем наличие скрипта с именем команды
+        if (packageJson.scripts && packageJson.scripts[command]) {
+            ui.write(chalk.blue(`Executing script from package.json (${packageJsonPath}): ${chalk.bold(command)}`));
+
+            // Проверяем наличие пре-хука перед выполнением скрипта
+            ui.write(chalk.gray(`Checking for pre-hook for command '${command}'...`));
+            try {
+                const preHookResult = await runNpmHook('pre', command, undefined, ui);
+                if (!preHookResult.success) {
+                    ui.write(chalk.redBright(`Aborting command due to pre-hook failure.`));
+                    process.exit(1); // Abort if pre-hook failed
+                }
+            } catch (e) {
+                ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
+                process.exit(1);
+            }
+
+            // Подготавливаем аргументы для передачи скрипту
+            const scriptArgs = args.length > 0 ? ` -- ${args.join(' ')}` : '';
+
+            // Используем npm run вместо yarn или другого пакетного менеджера
+            const fullCommand = `npm run ${command}${scriptArgs}`;
+
+            try {
+                execSync(fullCommand, {
+                    stdio: 'inherit',
+                    env: process.env,
+                    cwd: process.cwd(), // Важно: используем текущую директорию
+                } as ExecSyncOptions);
+
+                ui.write(chalk.green(`Script "${command}" finished successfully.`));
+
+                // Проверяем наличие пост-хука после выполнения скрипта
+                ui.write(chalk.gray(`Checking for post-hook for command '${command}'...`));
+                try {
+                    const postHookResult = await runNpmHook('post', command, undefined, ui);
+                    if (!postHookResult.success) {
+                        ui.write(chalk.yellowBright(`Warning: post-hook script failed.`));
+                    }
+                } catch (e) {
+                    ui.write(
+                        chalk.yellowBright(`Warning: Error during post-hook execution: ${(e as Error).message || e}`),
+                    );
+                }
+
+                return true;
+            } catch (error) {
+                if (error && typeof error === 'object' && 'status' in error) {
+                    const status = (error as { status: number }).status;
+                    ui.write(chalk.redBright(`Script "${command}" failed with exit code ${status}.`));
+                    process.exit(status);
+                }
+                throw error;
+            }
+        }
+    } catch (error) {
+        // Если не удалось прочитать package.json или выполнить скрипт
+        ui.write(chalk.yellow(`Warning: Could not run script "${command}" from package.json: ${error}`));
+    }
+
+    return false;
+}
+
 async function main() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('ts-node/register');
@@ -298,7 +375,7 @@ async function main() {
         process.exit(0);
     }
 
-    let effectiveRunners: Record<string, Runner> = {};
+    let effectiveCommands: Record<string, Runner> = {};
 
     const runnerContext: RunnerContext = {};
 
@@ -309,7 +386,7 @@ async function main() {
 
         for (const plugin of config?.plugins ?? []) {
             for (const runner of plugin.runners()) {
-                effectiveRunners[runner.name] = runner.runner;
+                effectiveCommands[runner.name] = runner.runner;
                 additionalHelpMessages[runner.name] = runner.help;
             }
         }
@@ -319,14 +396,53 @@ async function main() {
         console.error(e);
     }
 
-    effectiveRunners = {
-        ...effectiveRunners,
-        ...runners,
+    effectiveCommands = {
+        ...effectiveCommands,
+        ...commands,
     };
 
     const command = args._[0];
+    const ui = new InquirerUIProvider();
 
-    const runner = effectiveRunners[command];
+    // Если это команда action, вызываем ее напрямую, без проверки скриптов
+    if (command === 'action') {
+        const runner = effectiveCommands[command];
+        if (!runner) {
+            ui.write(chalk.redBright(`Error: command ${command} not found.`));
+            showHelp();
+            process.exit(1);
+        }
+
+        try {
+            await runner(args, ui, runnerContext);
+        } catch (e) {
+            if (e && typeof e === 'object' && 'message' in e) {
+                console.error((e as { message: string }).message);
+            } else {
+                console.error(e);
+            }
+            process.exit(1);
+        }
+
+        ui.close();
+        return;
+    }
+
+    // Для всех остальных команд сначала пытаемся запустить скрипт из package.json
+    // При этом пропускаем команду help, так как она должна работать без скриптов
+    if (command !== 'help') {
+        // Попытка запустить команду из package.json
+        const scriptRan = await runPackageScript(command, args._.slice(1), ui);
+
+        // Если скрипт был найден и выполнен, завершаем работу
+        if (scriptRan) {
+            ui.close();
+            return;
+        }
+    }
+
+    // Если скрипт не найден, ищем встроенную команду
+    const runner = effectiveCommands[command];
     if (!runner) {
         console.log(
             chalk.redBright(`Error: command ${command} not found.`) +
@@ -338,18 +454,16 @@ async function main() {
         return;
     }
 
-    const ui = new InquirerUIProvider();
-
     try {
         // --- Pre-hook execution ---
         let _preHookRan = false;
-        // Only run pre-hook here if NOT the 'run' or 'build' command
-        if (command !== 'run' && command !== 'build') {
+        // Только запускаем pre-hook если это НЕ команда 'run', 'build' или 'test'
+        if (command !== 'run' && command !== 'build' && command !== 'test') {
             const preHookResult = await runNpmHook('pre', command, args._[1], ui);
             _preHookRan = preHookResult.ran;
             if (!preHookResult.success) {
                 ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
-                process.exit(1); // Abort if pre-hook failed
+                process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
             }
         }
         // --- End Pre-hook ---
@@ -357,12 +471,12 @@ async function main() {
         await runner(args, ui, runnerContext);
 
         // --- Post-hook execution ---
-        // Only run post-hook here if NOT the 'run' or 'build' command
-        if (command !== 'run' && command !== 'build') {
-            // Only run post-hook if pre-hook didn't fail (implied) and runner succeeded
+        // Только запускаем post-hook если это НЕ команда 'run', 'build' или 'test'
+        if (command !== 'run' && command !== 'build' && command !== 'test') {
+            // Запускаем post-hook только если pre-hook не завершился с ошибкой (подразумевается) и runner успешно выполнился
             const postHookResult = await runNpmHook('post', command, args._[1], ui);
             if (!postHookResult.success) {
-                // Don't exit, just warn if post-hook fails
+                // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
                 ui.write(chalk.yellowBright('Warning: post-hook script failed.'));
             }
         }
@@ -427,6 +541,13 @@ function showHelp() {
             chalk.whiteBright(`runs a script from 'scripts' directory (eg. a deploy script)`),
     );
     console.log(`\t\t\t` + chalk.gray(`blueprint run deployContractName`));
+
+    console.log(
+        chalk.cyanBright(`  blueprint action`) +
+            `\t` +
+            chalk.whiteBright(`execute a command directly without running npm scripts`),
+    );
+    console.log(`\t\t\t` + chalk.gray(`blueprint action build ContractName`));
 
     console.log(
         chalk.cyanBright(`  blueprint help`) +
