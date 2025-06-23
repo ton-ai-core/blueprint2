@@ -84,7 +84,10 @@ type ContractProviderFactory = (params: { address: Address; init?: StateInit | n
 // Расширяем тип ContractAdapter, добавляя отсутствующие свойства
 interface ExtendedTonApiClient {
     blockchain: {
-        getAccountTransactions: (address: string, options: { limit: number }) => Promise<{ transactions: any[] }>;
+        getAccountTransactions: (
+            address: string,
+            options: { limit: number },
+        ) => Promise<{ transactions: Array<Record<string, unknown>> }>;
     };
 }
 
@@ -100,6 +103,35 @@ type _TransactionOptions = {
     to_lt?: string;
     inclusive?: boolean;
     archival?: boolean;
+};
+
+// Определяем структуру для fees
+interface TransactionFees {
+    gas_fee?: string | bigint;
+    storage_fee?: string | bigint;
+    forward_fee?: string | bigint;
+    total_fee?: string | bigint;
+    total_fees?: string | bigint;
+}
+
+// Определяем минимальную структуру транзакции
+type TransactionType = {
+    hash?: string | (() => Buffer<ArrayBufferLike>);
+    transaction_id?: { hash: string | (() => Buffer<ArrayBufferLike>); lt: string | bigint | (() => bigint) };
+    lt?: string | bigint | (() => bigint);
+    utime?: number;
+    timestamp?: number;
+    total_fees?: string | bigint;
+    fees?: TransactionFees;
+    status?: string;
+    compute?: {
+        exit_code?: number;
+        exit_arg?: number | string;
+        gas_used?: number | string;
+        vm_steps?: number | string;
+    };
+    success?: boolean;
+    aborted?: boolean;
 };
 
 class SendProviderSender implements SenderWithSendResult {
@@ -249,10 +281,12 @@ class NetworkProviderImpl implements NetworkProvider {
         return (await this.#tc.provider(address).getState()).state.type === 'active';
     }
 
-    async verifyTransactionStatus(address: Address): Promise<{ success: boolean; error?: string; tx?: any }> {
+    async verifyTransactionStatus(
+        address: Address,
+    ): Promise<{ success: boolean; error?: string; tx?: TransactionType }> {
         try {
             const client = this.#tc;
-            let txs: any[] = [];
+            let txs: TransactionType[] = [];
             let attempts = 0;
             const limit = 1;
 
@@ -263,7 +297,7 @@ class NetworkProviderImpl implements NetworkProvider {
                         const resp = await extendedClient.client.blockchain.getAccountTransactions(address.toString(), {
                             limit,
                         });
-                        txs = resp.transactions || [];
+                        txs = (resp.transactions as unknown as TransactionType[]) || [];
                         if (txs.length > 0) break;
                     } catch (_e) {
                         // Игнорируем ошибку и повторяем попытку
@@ -277,14 +311,17 @@ class NetworkProviderImpl implements NetworkProvider {
                         // Вместо приведения типов используем проверенный метод с правильными аргументами
                         // TonClient и TonClient4 имеют разные сигнатуры для getTransactions
                         if (client instanceof TonClient) {
-                            txs = await client.getTransactions(address, {
+                            txs = (await client.getTransactions(address, {
                                 limit,
                                 // Другие параметры могут быть добавлены при необходимости
-                            });
+                            })) as unknown as TransactionType[];
                         } else {
-                            // Для TonClient4 или других клиентов используем any для обхода типизации
-                            // т.к. нет уверенности в том, какой метод доступен
-                            txs = await (client as any).getTransactions(address, 0n, Buffer.alloc(32), limit);
+                            // Для TonClient4 используем правильную сигнатуру метода
+                            txs = (await (client as TonClient4).getAccountTransactions(
+                                address,
+                                0n,
+                                Buffer.alloc(32),
+                            )) as unknown as TransactionType[];
                         }
                         if (txs.length > 0) break;
                     } catch (_e) {
@@ -307,7 +344,7 @@ class NetworkProviderImpl implements NetworkProvider {
                     try {
                         txHash = txHash().toString('hex');
                     } catch (_e) {
-                        txHash = null;
+                        txHash = undefined;
                     }
                 }
 
@@ -316,7 +353,7 @@ class NetworkProviderImpl implements NetworkProvider {
                     try {
                         lt = lt();
                     } catch (_e) {
-                        lt = null;
+                        lt = undefined;
                     }
                 }
 
@@ -325,7 +362,11 @@ class NetworkProviderImpl implements NetworkProvider {
                 const status = tx.status;
                 let explorerTxLink = '';
                 if (txHash && this.#network && this.#explorer) {
-                    explorerTxLink = getExplorerTxLink(txHash, this.#network, this.#explorer);
+                    explorerTxLink = getExplorerTxLink(
+                        typeof txHash === 'string' ? txHash : '',
+                        this.#network,
+                        this.#explorer,
+                    );
                 }
                 if (
                     (typeof status === 'string' && status === 'failed') ||
@@ -413,14 +454,16 @@ class NetworkProviderImpl implements NetworkProvider {
                         try {
                             txHash = txHash().toString('hex');
                         } catch (_e) {
-                            txHash = null;
+                            txHash = undefined;
                         }
                     }
 
                     // If we have the transaction hash, check its status directly via TonAPI
                     if (txHash) {
                         this.#ui.setActionPrompt(`Verifying transaction status...`);
-                        const specificTxStatus = await this.verifyTransactionByHash(txHash);
+                        const specificTxStatus = await this.verifyTransactionByHash(
+                            typeof txHash === 'string' ? txHash : '',
+                        );
 
                         // If TonAPI returned an error for this transaction, report it
                         if (!specificTxStatus.success) {
@@ -447,7 +490,7 @@ class NetworkProviderImpl implements NetworkProvider {
                         try {
                             lt = lt();
                         } catch (_e) {
-                            lt = null;
+                            lt = undefined;
                         }
                     }
 
@@ -455,7 +498,11 @@ class NetworkProviderImpl implements NetworkProvider {
                     const fees = tx.total_fees || tx.fees;
                     let explorerTxLink = '';
                     if (txHash && this.#network && this.#explorer) {
-                        explorerTxLink = getExplorerTxLink(txHash, this.#network, this.#explorer);
+                        explorerTxLink = getExplorerTxLink(
+                            typeof txHash === 'string' ? txHash : '',
+                            this.#network,
+                            this.#explorer,
+                        );
                     }
 
                     // Form detailed transaction information
@@ -485,23 +532,24 @@ class NetworkProviderImpl implements NetworkProvider {
                     }
 
                     // Add information about gas and VM steps
-                    if (tx.compute?.gas_used) {
+                    if (tx.compute?.gas_used !== undefined) {
                         info += `Gas used: ${tx.compute.gas_used}\n`;
                     }
 
-                    if (tx.compute?.vm_steps) {
+                    if (tx.compute?.vm_steps !== undefined) {
                         info += `VM steps: ${tx.compute.vm_steps}\n`;
                     }
 
                     // Add detailed information about fees
                     if (fees) {
-                        if (typeof fees === 'object') {
+                        if (typeof fees === 'object' && fees !== null) {
                             // Output detailed information about different types of fees
-                            if (fees.gas_fee) info += `Gas fee: ${fees.gas_fee}\n`;
-                            if (fees.storage_fee) info += `Storage fee: ${fees.storage_fee}\n`;
-                            if (fees.forward_fee) info += `Forward fee: ${fees.forward_fee}\n`;
-                            if (fees.total_fee || fees.total_fees)
-                                info += `Total fee: ${fees.total_fee || fees.total_fees}\n`;
+                            const feesObj = fees as TransactionFees;
+                            if (feesObj.gas_fee) info += `Gas fee: ${feesObj.gas_fee}\n`;
+                            if (feesObj.storage_fee) info += `Storage fee: ${feesObj.storage_fee}\n`;
+                            if (feesObj.forward_fee) info += `Forward fee: ${feesObj.forward_fee}\n`;
+                            if (feesObj.total_fee || feesObj.total_fees)
+                                info += `Total fee: ${feesObj.total_fee || feesObj.total_fees}\n`;
                         } else {
                             info += `Fees: ${fees}\n`;
                         }
@@ -730,8 +778,10 @@ class NetworkProviderImpl implements NetworkProvider {
 }
 
 async function createMnemonicProvider(client: BlueprintTonClient, ui: UIProvider, network: Network) {
-    const mnemonic = process.env.WALLET_MNEMONIC ?? '';
-    const walletVersion = process.env.WALLET_VERSION ?? '';
+    // Access environment variables using indexer notation to avoid TypeScript errors
+    const mnemonic = process.env['WALLET_MNEMONIC'] || '';
+    const walletVersion = process.env['WALLET_VERSION'] || '';
+
     if (mnemonic.length === 0 || walletVersion.length === 0) {
         throw new Error(
             'Mnemonic deployer was chosen, but env variables WALLET_MNEMONIC and WALLET_VERSION are not set',

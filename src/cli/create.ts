@@ -111,14 +111,18 @@ export const create: Runner = async (_args: Args, ui: UIProvider) => {
         return;
     }
 
-    let localArgs: any;
+    let localArgs: {
+        _: string[];
+        '--type'?: string;
+        '--help'?: boolean;
+    };
     try {
         localArgs = arg({
             '--type': String,
             ...helpArgs,
         });
     } catch (_e) {
-        const msg = _e && typeof _e === 'object' && 'message' in _e ? (_e as any).message : String(_e);
+        const msg = _e && typeof _e === 'object' && 'message' in _e ? (_e as { message: string }).message : String(_e);
         if (msg.includes('unknown or unexpected option')) {
             const availableFlags = ['--type', '--help'].join(', ');
             ui.write(msg);

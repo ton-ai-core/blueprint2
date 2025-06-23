@@ -14,14 +14,14 @@ import * as _pkgManagerService from '../pkgManager/service';
 import { runNpmHook } from './cli';
 
 export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerContext) => {
-    let localArgs: Args;
+    let localArgs: Args & { '--help'?: boolean };
     try {
         localArgs = arg({
             ...argSpec,
             ...helpArgs,
         });
     } catch (e) {
-        const msg = e && typeof e === 'object' && 'message' in e ? (e as any).message : String(e);
+        const msg = e && typeof e === 'object' && 'message' in e ? (e as { message: string }).message : String(e);
         if (msg.includes('unknown or unexpected option')) {
             const availableFlags = Object.keys(argSpec).join(', ');
             ui.write(msg);
@@ -31,7 +31,7 @@ export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerCo
             throw e;
         }
     }
-    if ((localArgs as any)['--help']) {
+    if (localArgs['--help']) {
         ui.write(helpMessages['run']);
         return;
     }

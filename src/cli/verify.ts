@@ -181,16 +181,16 @@ async function lookupCodeHash(hash: Buffer, ui: UIProvider, retryCount: number =
             } else {
                 retryCount--;
             }
-            // Meh
-        } catch (e: any) {
+        } catch (e) {
             retryCount--;
-            if (e.cause) {
-                if (e.cause.code == 'ETIMEDOUT') {
+            if (e && typeof e === 'object' && 'cause' in e) {
+                const cause = (e as { cause?: { code?: string } }).cause;
+                if (cause && cause.code === 'ETIMEDOUT') {
                     ui.write('API timed out, waiting...');
                     await sleep(5000);
                 }
             } else {
-                ui.write(e);
+                ui.write(String(e));
             }
         }
     } while (!done && retryCount > 0);
@@ -327,8 +327,7 @@ export const verify: Runner = async (_args: Args, ui: UIProvider, context: Runne
         };
     } else {
         // future proofing
-
-        throw new Error('Unsupported language ' + (result as any).lang);
+        throw new Error('Unsupported language ' + (result as { lang: string }).lang);
     }
 
     fd.append(

@@ -49,7 +49,7 @@ export async function runNpmHook(
     actualArg: string | undefined, // The actual first argument passed (e.g., 'deploy-staging')
     ui: UIProvider,
 ): Promise<{ ran: boolean; success: boolean }> {
-    let packageJson: any;
+    let packageJson: { blueprint?: Record<string, string>; scripts?: Record<string, string> };
     try {
         const packageJsonPath = path.join(process.cwd(), 'package.json');
         const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
@@ -92,7 +92,7 @@ export async function runNpmHook(
                 return { ran: true, success: true }; // Standard hook executed, finish.
             } catch (error) {
                 if (error && typeof error === 'object' && 'status' in error) {
-                    const status = (error as any).status;
+                    const status = (error as { status: number }).status;
                     ui.write(
                         chalk.redBright(
                             `Standard ${hookType}-hook script "${standardHookName}" failed with exit code ${status}.`,
@@ -156,7 +156,7 @@ export async function runNpmHook(
                                 return { ran: true, success: true }; // Executed, finish.
                             } catch (error) {
                                 if (error && typeof error === 'object' && 'status' in error) {
-                                    const status = (error as any).status;
+                                    const status = (error as { status: number }).status;
                                     ui.write(
                                         chalk.redBright(
                                             `${hookType}-hook script "${scriptKey}" failed with exit code ${status}.`,
@@ -257,7 +257,7 @@ export async function runNpmHook(
                                 return { ran: true, success: true }; // Return after executing the first match
                             } catch (error) {
                                 if (error && typeof error === 'object' && 'status' in error) {
-                                    const status = (error as any).status;
+                                    const status = (error as { status: number }).status;
                                     ui.write(
                                         chalk.redBright(
                                             `${hookType}-hook script "${scriptKey}" failed with exit code ${status}.`,
@@ -369,7 +369,7 @@ async function main() {
         // --- End Post-hook ---
     } catch (e) {
         if (e && typeof e === 'object' && 'message' in e) {
-            console.error((e as any).message);
+            console.error((e as { message: string }).message);
         } else {
             console.error(e);
         }

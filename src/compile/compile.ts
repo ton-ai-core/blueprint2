@@ -154,7 +154,7 @@ export type CompileOpts = {
     /**
      * Any user-defined data that will be passed to both `preCompileHook` and `postCompileHook`.
      */
-    hookUserData?: any;
+    hookUserData?: Record<string, unknown>;
 };
 
 /**

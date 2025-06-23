@@ -1201,6 +1201,7 @@ __metadata:
   resolution: "@ton-ai-core/blueprint@workspace:."
   dependencies:
     "@tact-lang/compiler": "npm:^1.6.13"
+    "@ton-ai-core/eslint-plugin-suggest-members": "npm:^1.5.6"
     "@ton-api/client": "npm:^0.2.0"
     "@ton-api/ton-adapter": "npm:^0.2.0"
     "@ton-community/func-js": "npm:^0.9.1"
@@ -1237,6 +1238,17 @@ __metadata:
     blueprint: dist/cli/cli.js
   languageName: unknown
   linkType: soft
+
+"@ton-ai-core/eslint-plugin-suggest-members@npm:^1.5.6":
+  version: 1.5.6
+  resolution: "@ton-ai-core/eslint-plugin-suggest-members@npm:1.5.6"
+  peerDependencies:
+    "@typescript-eslint/parser": ">=5.0.0"
+    eslint: ">=7.0.0"
+    typescript: ">=4.0.0"
+  checksum: 10/1dbbebf415a7fda9c4a3daca1228cb5850f947169ef6df7e74ea836a5c6cc8c00faa6d4527d372184b3f4e972daee6026103dd246521ab08f338f09d53dbd5d3
+  languageName: node
+  linkType: hard
 
 "@ton-api/client@npm:^0.2.0":
   version: 0.2.0

@@ -5,7 +5,7 @@ import { FuncCompilerConfig } from './func/config';
 import { TactCompilerConfig, TactLegacyCompilerConfig } from './tact/config';
 
 export type HookParams = {
-    userData?: any;
+    userData?: Record<string, unknown>;
 };
 
 export type CommonCompilerConfig = {

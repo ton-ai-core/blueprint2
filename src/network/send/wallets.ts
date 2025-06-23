@@ -36,8 +36,13 @@ class WalletContractV4R1 {
                 'hex',
             ),
         )[0]!;
-        (wallet as any).init = { data, code };
-        (wallet as any).address = contractAddress(args.workchain, wallet.init);
+        // Приведение типа для кастомизации объекта wallet
+        type ExtendedWallet = typeof wallet & {
+            init: { data: Cell; code: Cell };
+            address: unknown;
+        };
+        (wallet as ExtendedWallet).init = { data, code };
+        (wallet as ExtendedWallet).address = contractAddress(args.workchain, { data, code });
         return wallet;
     }
 }

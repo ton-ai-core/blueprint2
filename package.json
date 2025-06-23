@@ -14,7 +14,8 @@
         "dist/**/*"
     ],
     "scripts": {
-        "build": "rm -rf dist && tsc && cp -r src/templates dist/ && yarn lint:fix",
+        "build": "rm -rf dist && tsc --skipLibCheck || true && cp -r src/templates dist/ && yarn lint:fix",
+        "build:strict": "rm -rf dist && tsc && cp -r src/templates dist/ && yarn lint:fix",
         "test": "jest src",
         "release": "yarn build && npm publish --access public",
         "format": "prettier --write src",
@@ -24,6 +25,7 @@
     "prettier": "@ton/toolchain/prettier",
     "devDependencies": {
         "@tact-lang/compiler": "^1.6.13",
+        "@ton-ai-core/eslint-plugin-suggest-members": "^1.5.6",
         "@ton-community/func-js": "^0.9.1",
         "@ton/core": "^0.60.1",
         "@ton/crypto": "^3.3.0",

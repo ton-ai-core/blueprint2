@@ -128,8 +128,8 @@ export const convert: Runner = async (_args: Args, ui: UIProvider) => {
 
         try {
             parsed = parseCompileString(compileStr[1], srcDir, ui);
-        } catch (e: any) {
-            ui.write(e.toString());
+        } catch (e: Error | unknown) {
+            ui.write(e instanceof Error ? e.toString() : String(e));
             continue;
         }
 
