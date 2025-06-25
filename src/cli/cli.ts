@@ -196,9 +196,11 @@ async function runPackageScript(command: string, args: string[], ui: UIProvider)
         const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
         const packageJson = JSON.parse(packageJsonContent);
 
-        // Проверяем наличие скрипта с именем команды
-        if (packageJson.scripts && packageJson.scripts[command]) {
-            ui.write(chalk.blue(`Executing script from package.json (${packageJsonPath}): ${chalk.bold(command)}`));
+        // Проверяем наличие скрипта с именем команды в секции blueprint
+        if (packageJson.blueprint && packageJson.blueprint[command]) {
+            ui.write(
+                chalk.blue(`Executing script from blueprint section (${packageJsonPath}): ${chalk.bold(command)}`),
+            );
 
             // Проверяем наличие пре-хука перед выполнением скрипта
             ui.write(chalk.gray(`Checking for pre-hook for command '${command}'...`));
@@ -216,11 +218,12 @@ async function runPackageScript(command: string, args: string[], ui: UIProvider)
             // Подготавливаем аргументы для передачи скрипту
             const scriptArgs = args.length > 0 ? ` -- ${args.join(' ')}` : '';
 
-            // Используем npm run вместо yarn или другого пакетного менеджера
-            const fullCommand = `npm run ${command}${scriptArgs}`;
+            // Получаем команду из секции blueprint
+            const scriptContent = packageJson.blueprint[command];
 
             try {
-                execSync(fullCommand, {
+                // Выполняем команду напрямую
+                execSync(scriptContent + scriptArgs, {
                     stdio: 'inherit',
                     env: process.env,
                     cwd: process.cwd(), // Важно: используем текущую директорию
