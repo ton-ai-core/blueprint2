@@ -303,6 +303,7 @@ async function main() {
 
     // Если это команда action, вызываем ее напрямую, без проверки скриптов
     if (command === 'action') {
+        const actionCommand = args._[1]; // Фактическая команда, которую нужно выполнить через action
         const runner = effectiveCommands[command];
         if (!runner) {
             ui.write(chalk.redBright(`Error: command ${command} not found.`));
@@ -311,7 +312,47 @@ async function main() {
         }
 
         try {
+            // --- Pre-hook execution для команды action ---
+            // Сначала проверяем хук без аргументов (например, preaction)
+            ui.write(chalk.gray(`Checking for pre-hook for command 'action'...`));
+            const preHookResultNoArg = await runNpmHook('pre', command, undefined, ui);
+            if (!preHookResultNoArg.success) {
+                ui.write(chalk.redBright(`Aborting command due to pre-hook failure.`));
+                process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
+            }
+
+            // Затем проверяем хук с аргументом (например, preaction:build)
+            if (actionCommand) {
+                ui.write(chalk.gray(`Checking for pre-hook for command 'action' with argument '${actionCommand}'...`));
+                const preHookResultWithArg = await runNpmHook('pre', command, actionCommand, ui);
+                if (!preHookResultWithArg.success) {
+                    ui.write(chalk.redBright(`Aborting command due to pre-hook failure.`));
+                    process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
+                }
+            }
+            // --- End Pre-hook ---
+
             await runner(args, ui, runnerContext);
+
+            // --- Post-hook execution для команды action ---
+            // Сначала проверяем хук без аргументов (например, postaction)
+            ui.write(chalk.gray(`Checking for post-hook for command 'action'...`));
+            const postHookResultNoArg = await runNpmHook('post', command, undefined, ui);
+            if (!postHookResultNoArg.success) {
+                // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
+                ui.write(chalk.yellowBright(`Warning: post-hook script failed.`));
+            }
+
+            // Затем проверяем хук с аргументом (например, postaction:build)
+            if (actionCommand) {
+                ui.write(chalk.gray(`Checking for post-hook for command 'action' with argument '${actionCommand}'...`));
+                const postHookResultWithArg = await runNpmHook('post', command, actionCommand, ui);
+                if (!postHookResultWithArg.success) {
+                    // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
+                    ui.write(chalk.yellowBright(`Warning: post-hook script failed.`));
+                }
+            }
+            // --- End Post-hook ---
         } catch (e) {
             if (e && typeof e === 'object' && 'message' in e) {
                 console.error((e as { message: string }).message);
@@ -354,24 +395,47 @@ async function main() {
     try {
         // --- Pre-hook execution ---
         let _preHookRan = false;
-        // Запускаем pre-hook для всех команд (убираем ограничение на 'run', 'build', 'test')
-        const preHookResult = await runNpmHook('pre', command, args._[1], ui);
-        _preHookRan = preHookResult.ran;
-        if (!preHookResult.success) {
+
+        // Сначала проверяем хук без аргументов (например, prerun)
+        ui.write(chalk.gray(`Checking for pre-hook for command '${command}'...`));
+        const preHookResultNoArg = await runNpmHook('pre', command, undefined, ui);
+        _preHookRan = preHookResultNoArg.ran;
+        if (!preHookResultNoArg.success) {
             ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
             process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
+        }
+
+        // Затем проверяем хук с аргументом (например, prerun:deployCounter)
+        if (args._[1]) {
+            ui.write(chalk.gray(`Checking for pre-hook for command '${command}' with argument '${args._[1]}'...`));
+            const preHookResultWithArg = await runNpmHook('pre', command, args._[1], ui);
+            _preHookRan = _preHookRan || preHookResultWithArg.ran;
+            if (!preHookResultWithArg.success) {
+                ui.write(chalk.redBright('Aborting command due to pre-hook failure.'));
+                process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
+            }
         }
         // --- End Pre-hook ---
 
         await runner(args, ui, runnerContext);
 
         // --- Post-hook execution ---
-        // Запускаем post-hook для всех команд (убираем ограничение на 'run', 'build', 'test')
-        // Запускаем post-hook только если pre-hook не завершился с ошибкой (подразумевается) и runner успешно выполнился
-        const postHookResult = await runNpmHook('post', command, args._[1], ui);
-        if (!postHookResult.success) {
+        // Сначала проверяем хук без аргументов (например, postrun)
+        ui.write(chalk.gray(`Checking for post-hook for command '${command}'...`));
+        const postHookResultNoArg = await runNpmHook('post', command, undefined, ui);
+        if (!postHookResultNoArg.success) {
             // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
             ui.write(chalk.yellowBright('Warning: post-hook script failed.'));
+        }
+
+        // Затем проверяем хук с аргументом (например, postrun:deployCounter)
+        if (args._[1]) {
+            ui.write(chalk.gray(`Checking for post-hook for command '${command}' with argument '${args._[1]}'...`));
+            const postHookResultWithArg = await runNpmHook('post', command, args._[1], ui);
+            if (!postHookResultWithArg.success) {
+                // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
+                ui.write(chalk.yellowBright('Warning: post-hook script failed.'));
+            }
         }
         // --- End Post-hook ---
     } catch (e) {

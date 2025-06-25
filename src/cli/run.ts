@@ -11,7 +11,6 @@ import { getEntityName } from '../utils/cliUtils';
 import { UIProvider } from '../ui/UIProvider';
 import { helpArgs, helpMessages } from './constants';
 import * as _pkgManagerService from '../pkgManager/service';
-import { runNpmHook } from './cli';
 
 export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerContext) => {
     let localArgs: Args & { '--help'?: boolean };
@@ -51,20 +50,9 @@ export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerCo
         throw new Error(`Function \`run\` is missing in script ${finalScriptName}!`);
     }
 
-    ui.write(chalk.gray(`Checking for pre-hook for command 'run' with argument '${finalScriptName}'...`));
-    // --- Pre-hook Execution (Moved Here) ---
-    // Run pre-hook AFTER the script name is determined
-    try {
-        const preHookResult = await runNpmHook('pre', 'run', finalScriptName, ui);
-        if (!preHookResult.success) {
-            ui.write(chalk.redBright(`Aborting command due to pre-run:${finalScriptName} hook failure.`));
-            process.exit(1); // Abort if pre-hook failed
-        }
-    } catch (e) {
-        ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
-        process.exit(1);
-    }
-    // --- End Pre-hook ---
+    // Хуки запускаются в cli.ts для всех команд, включая 'run'
+    // Это позволяет избежать дублирования запуска хуков и обеспечивает единообразное поведение
+    // для всех команд, независимо от того, найдены они в package.json или нет
 
     const networkProvider = await createNetworkProvider(ui, localArgs, context.config);
 
@@ -73,21 +61,7 @@ export const run: Runner = async (_args: Args, ui: UIProvider, context: RunnerCo
 
     try {
         await mod.run(networkProvider, scriptArgs);
-
-        ui.write(chalk.gray(`Script ${finalScriptName} executed successfully. Checking for post-hook...`));
-        // --- Post-hook Execution (Moved Here) ---
-        try {
-            const postHookResult = await runNpmHook('post', 'run', finalScriptName, ui);
-            if (!postHookResult.success) {
-                // Don't exit, just warn if post-hook fails
-                ui.write(chalk.yellowBright(`Warning: post-run:${finalScriptName} hook script failed.`));
-            }
-        } catch (e) {
-            ui.write(
-                chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`),
-            );
-        }
-        // --- End Post-hook ---
+        ui.write(chalk.gray(`Script ${finalScriptName} executed successfully.`));
     } catch (e) {
         ui.write(chalk.redBright(`Error executing script ${finalScriptName}: ${(e as Error).message || e}`));
         process.exit(1);
