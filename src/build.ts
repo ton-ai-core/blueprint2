@@ -101,6 +101,7 @@ export async function buildAll(ui?: UIProvider, checkUnused: boolean = false) {
         if (existsSync(contractsDir)) {
             const files = await fs.readdir(contractsDir, { withFileTypes: true });
 
+            // Получаем все файлы контрактов в директории contracts
             const contractFiles = files
                 .filter(
                     (file) =>
@@ -111,6 +112,20 @@ export async function buildAll(ui?: UIProvider, checkUnused: boolean = false) {
 
             // Проверяем импорты в тактовых контрактах
             const importedContracts = new Set<string>();
+
+            // Получаем все пути к контрактам из tact.config.json
+            const tactConfig = getRootTactConfig();
+            const configuredPaths = new Set<string>();
+
+            // Добавляем пути из конфигурации tact
+            for (const project of tactConfig.projects) {
+                if (project.path) {
+                    // Нормализуем путь и извлекаем имя файла без расширения
+                    const normalizedPath = path.normalize(project.path);
+                    const fileName = path.basename(normalizedPath, path.extname(normalizedPath));
+                    configuredPaths.add(fileName.toLowerCase());
+                }
+            }
 
             for (const configuredContract of configuredContracts) {
                 // Проверяем только для контрактов Tact
@@ -139,11 +154,14 @@ export async function buildAll(ui?: UIProvider, checkUnused: boolean = false) {
             // Преобразуем имена контрактов к нижнему регистру для регистронезависимого сравнения
             const configuredContractsLower = configuredContracts.map((c) => c.toLowerCase());
 
-            const unusedContracts = contractFiles.filter(
-                (contract) =>
-                    !configuredContractsLower.includes(contract.toLowerCase()) &&
-                    !importedContracts.has(contract.toLowerCase()),
-            );
+            const unusedContracts = contractFiles.filter((contract) => {
+                const contractLower = contract.toLowerCase();
+                return (
+                    !configuredContractsLower.includes(contractLower) &&
+                    !importedContracts.has(contractLower) &&
+                    !configuredPaths.has(contractLower)
+                );
+            });
 
             if (unusedContracts.length > 0) {
                 ui?.write(chalk.red('\n❌ Error: The following contracts are not properly configured:'));
