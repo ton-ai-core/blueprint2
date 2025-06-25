@@ -314,25 +314,7 @@ async function main() {
         }
 
         try {
-            // --- Pre-hook execution для команды action ---
-            ui.write(chalk.gray(`Checking for pre-hook for command 'action'...`));
-            const preHookResult = await runNpmHook('pre', command, undefined, ui);
-            if (!preHookResult.success) {
-                ui.write(chalk.redBright(`Aborting command due to pre-hook failure.`));
-                process.exit(1); // Прерываем, если pre-hook завершился с ошибкой
-            }
-            // --- End Pre-hook ---
-
             await runner(args, ui, runnerContext);
-
-            // --- Post-hook execution для команды action ---
-            ui.write(chalk.gray(`Checking for post-hook for command 'action'...`));
-            const postHookResult = await runNpmHook('post', command, undefined, ui);
-            if (!postHookResult.success) {
-                // Не выходим, просто предупреждаем, если post-hook завершился с ошибкой
-                ui.write(chalk.yellowBright(`Warning: post-hook script failed.`));
-            }
-            // --- End Post-hook ---
         } catch (e) {
             if (e && typeof e === 'object' && 'message' in e) {
                 console.error((e as { message: string }).message);

@@ -6,7 +6,6 @@ import { UIProvider } from '../ui/UIProvider';
 import { buildAll, buildOne } from '../build';
 import { helpArgs, helpMessages } from './constants';
 import { Args, extractFirstArg, Runner } from './Runner';
-import { runNpmHook } from './cli';
 
 export async function selectContract(ui: UIProvider, hint?: string): Promise<string>;
 export async function selectContract(
@@ -72,65 +71,16 @@ export const build: Runner = async (args: Args, ui: UIProvider) => {
 
     if (localArgs['--all']) {
         ui.write(chalk.gray('Running build for all contracts...'));
-        try {
-            const preHookResult = await runNpmHook('pre', 'build', undefined, ui);
-            if (!preHookResult.success) {
-                ui.write(chalk.redBright('Aborting command due to pre-build hook failure.'));
-                process.exit(1);
-            }
-        } catch (e) {
-            ui.write(chalk.redBright(`Error during pre-build hook execution check: ${(e as Error).message || e}`));
-            process.exit(1);
-        }
-
         await buildAll(ui, true);
-
-        ui.write(chalk.magentaBright('[build.ts] buildAll finished. Preparing to check post-hook...'));
-        try {
-            const postHookResult = await runNpmHook('post', 'build', undefined, ui);
-            if (!postHookResult.success) {
-                ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
-            }
-        } catch (e) {
-            ui.write(
-                chalk.yellowBright(
-                    `Warning: Error during post-build hook execution check: ${(e as Error).message || e}`,
-                ),
-            );
-        }
+        ui.write(chalk.magentaBright('[build.ts] buildAll finished.'));
     } else {
         const selected = await selectContract(ui, extractFirstArg(args), true);
 
         if (typeof selected === 'string') {
             const contractName = selected;
-            ui.write(chalk.gray(`Checking for pre-hook for command 'build' with argument '${contractName}'...`));
-            try {
-                const preHookResult = await runNpmHook('pre', 'build', contractName, ui);
-                if (!preHookResult.success) {
-                    ui.write(chalk.redBright(`Aborting command due to pre-build:${contractName} hook failure.`));
-                    process.exit(1);
-                }
-            } catch (e) {
-                ui.write(chalk.redBright(`Error during pre-hook execution check: ${(e as Error).message || e}`));
-                process.exit(1);
-            }
-
             try {
                 await buildOne(contractName, ui);
-
-                ui.write(chalk.gray(`Build for ${contractName} successful. Checking for post-hook...`));
-                try {
-                    const postHookResult = await runNpmHook('post', 'build', contractName, ui);
-                    if (!postHookResult.success) {
-                        ui.write(chalk.yellowBright(`Warning: post-build:${contractName} hook script failed.`));
-                    }
-                } catch (e) {
-                    ui.write(
-                        chalk.yellowBright(
-                            `Warning: Error during post-hook execution check: ${(e as Error).message || e}`,
-                        ),
-                    );
-                }
+                ui.write(chalk.gray(`Build for ${contractName} successful.`));
             } catch (e) {
                 ui.write(
                     chalk.redBright(`Error during build execution for ${contractName}: ${(e as Error).message || e}`),
@@ -139,32 +89,8 @@ export const build: Runner = async (args: Args, ui: UIProvider) => {
             }
         } else {
             ui.write(chalk.gray('Running build for all contracts (selected interactively)...'));
-            try {
-                const preHookResult = await runNpmHook('pre', 'build', undefined, ui);
-                if (!preHookResult.success) {
-                    ui.write(chalk.redBright('Aborting command due to pre-build hook failure.'));
-                    process.exit(1);
-                }
-            } catch (e) {
-                ui.write(chalk.redBright(`Error during pre-build hook execution check: ${(e as Error).message || e}`));
-                process.exit(1);
-            }
-
             await buildAll(ui);
-
-            ui.write(
-                chalk.magentaBright('[build.ts] buildAll (interactive) finished. Preparing to check post-hook...'),
-            );
-            try {
-                const postHookResult = await runNpmHook('post', 'build', undefined, ui);
-                if (!postHookResult.success) {
-                    ui.write(chalk.yellowBright(`Warning: post-build hook script failed.`));
-                }
-            } catch (e) {
-                ui.write(
-                    chalk.yellowBright(`Warning: Error during post-hook execution check: ${(e as Error).message || e}`),
-                );
-            }
+            ui.write(chalk.magentaBright('[build.ts] buildAll (interactive) finished.'));
         }
     }
 };
