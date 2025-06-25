@@ -1,6 +1,6 @@
 {
     "name": "@ton-ai-core/blueprint",
-    "version": "0.35.8",
+    "version": "0.35.9",
     "description": "Framework for development of TON smart contracts",
     "main": "dist/index.js",
     "bin": "dist/cli/cli.js",
