@@ -137,8 +137,8 @@ export async function buildAll(ui?: UIProvider, checkUnused: boolean = false) {
                 if (project && existsSync(project.path)) {
                     try {
                         const content = await fs.readFile(project.path, 'utf-8');
-                        // Ищем импорты вида import "./contract.tact";
-                        const importRegex = /import\s+["']\.\/([^"']+)\.tact["'];/g;
+                        // Ищем импорты вида import "./contract.tact"; или import "./contract";
+                        const importRegex = /import\s+["']\.\/([\w_-]+)(?:\.tact)?[""];/g;
                         let match;
 
                         while ((match = importRegex.exec(content)) !== null) {
