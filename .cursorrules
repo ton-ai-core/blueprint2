@@ -41,50 +41,73 @@ When solving tasks, follow this precise workflow internally:
 
 <example>
 user: Implement a secure blockchain wallet in Rust.
-assistant: 
-- [search_codebase: "secure blockchain wallet"] → no relevant results.
-- [search_knowledge: "blockchain wallet Rust example"] → found incomplete examples.
-- [search_web: "secure blockchain wallet best practices Rust site:github.com"] → identified github.com/example/secure-rust-wallet.
+assistant:
+- thinking: I need to check if there are local implementations of secure wallets.
+- [search_codebase("secure blockchain wallet")] → no relevant matches.
+- thinking: I should look for real-world examples of secure wallet projects in Rust.
+- [search_web("secure blockchain wallet Rust best practices site:github.com")] → found github.com/example/secure-rust-wallet
+- thinking: I will clone and inspect that repo.
 - [git clone github.com/example/secure-rust-wallet .knowledge/secure-rust-wallet]
-- [search_knowledge: "signature verification" inside .knowledge/secure-rust-wallet] → confirmed security patterns.
+- thinking: I must verify that signature checks and replay protection are implemented.
+- [search_knowledge("signature verification" inside .knowledge/secure-rust-wallet)] → confirmed.
+- thinking: I must load rule constraints for Rust development.
 - [fetch_rules("rust")] → loaded `.cursor/rules/rust.mdc`.
-- [result] Secure wallet implemented (`src/wallet.rs`) with full signature verification, replay protection, 100% test coverage. All tests passed successfully.
+- thinking: I will now implement the wallet with verified security patterns.
+- [result] `src/wallet.rs` created with secure logic, signature verification, replay protection, and 100% test coverage. `cargo test` passed.
 </example>
 
 <example>
 user: Refactor existing authentication to use JWT tokens.
 assistant:
-- [search_codebase: "user authentication"] → found existing solution (`src/auth/sessionAuth.ts`).
-- [search_web: "JWT best security practices site:owasp.org"] → retrieved OWASP guidelines.
-- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`.
-- [result] Refactored authentication in `src/auth/jwtAuth.ts` according to OWASP JWT standards. All tests pass.
+- thinking: First I need to locate current session-based authentication logic.
+- [search_codebase("user authentication")] → found `src/auth/sessionAuth.ts`
+- thinking: I must load official JWT security practices.
+- [search_web("JWT best practices site:owasp.org")] → retrieved OWASP checklist.
+- thinking: I will activate relevant rules for secure TypeScript refactoring.
+- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`
+- thinking: I will now implement JWT-based flow using OWASP rules.
+- [result] `src/auth/jwtAuth.ts` created. Secure token generation, verification, and rotation implemented. All tests and linters passed.
 </example>
 
 <example>
 user: Improve database query performance.
 assistant:
-- [search_codebase: "slow query"] → found problematic queries (`src/db/queries.ts`).
-- [search_web: "PostgreSQL query optimization best practices site:postgresql.org"] → identified indexing and batching strategies.
-- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`.
-- [result] Queries optimized using recommended strategies; performance increased by 75%. All tests pass.
+- thinking: I should identify current slow query patterns.
+- [search_codebase("slow query")] → found unindexed loops in `src/db/queries.ts`
+- thinking: I will search for PostgreSQL performance practices.
+- [search_web("PostgreSQL query optimization best practices site:postgresql.org")] → retrieved indexing and batching strategies.
+- thinking: I must load linting and typing rules before making changes.
+- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`
+- thinking: I will now refactor queries using proper indexing and batching.
+- [result] Optimized `src/db/queries.ts`. Query time reduced by 75%. All DB and API tests passed.
 </example>
 
 <example>
 user: Add Lodash’s debounce implementation.
 assistant:
-- [search_codebase: "debounce implementation"] → no local implementations.
-- [search_web: "lodash debounce raw.githubusercontent.com"] → found raw GitHub URL.
+- thinking: I need to check if debounce utility is already implemented.
+- [search_codebase("debounce implementation")] → not found.
+- thinking: I’ll retrieve the canonical Lodash debounce from source.
+- [search_web("lodash debounce site:raw.githubusercontent.com")] → found official source.
+- thinking: I’ll download the implementation for local analysis.
 - [curl -sSL "https://raw.githubusercontent.com/lodash/lodash/master/debounce.js" -o .knowledge/debounce.js]
-- [search_knowledge: "function debounce" inside .knowledge/debounce.js] → confirmed official implementation.
-- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`.
-- [result] Implemented Lodash’s debounce in `src/utils/debounce.ts`. Fully tested, ESLint compliant, 0 warnings.
+- thinking: I need to confirm function structure inside the downloaded file.
+- [search_knowledge("function debounce" inside .knowledge/debounce.js)] → confirmed correct logic.
+- thinking: I will activate rules before wrapping logic into TypeScript.
+- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`
+- thinking: I will port the debounce function with type annotations and unit tests.
+- [result] Implemented at `src/utils/debounce.ts`. Fully tested. 0 ESLint warnings.
 </example>
 
 <example>
 user: Identify and fix a critical security vulnerability in session handling.
 assistant:
-- [search_codebase: "session handling"] → identified vulnerable session logic (`src/auth/sessionManager.ts`).
-- [search_web: "session handling vulnerabilities mitigation site:owasp.org"] → found recommended mitigations.
-- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`.
-- [result] Session handling secured according to OWASP guidance, eliminating vulnerabilities. All security and regression tests pass.
+- thinking: I must locate existing session logic to review.
+- [search_codebase("session handling")] → found weak logic in `src/auth/sessionManager.ts`
+- thinking: I’ll search for secure session handling techniques.
+- [search_web("session handling vulnerabilities mitigation site:owasp.org")] → retrieved secure session storage and expiration techniques.
+- thinking: I will load linting & security constraints before editing.
+- [fetch_rules("typescript")] → loaded `.cursor/rules/ts.mdc`
+- thinking: I will now replace insecure logic with secure stateless tokens.
+- [result] Rewrote `sessionManager.ts` to eliminate vulnerabilities. Sessions are signed, time-limited, and non-forgeable. Security + regression tests passed.
 </example>
