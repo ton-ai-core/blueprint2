@@ -222,8 +222,13 @@ async function runPackageScript(command: string, args: string[], ui: UIProvider)
             const scriptContent = packageJson.blueprint[command];
 
             try {
+                // Заменяем плейсхолдер %scriptArgs% на реальные аргументы, если он есть
+                const finalScriptContent = scriptContent.includes('%scriptArgs%')
+                    ? scriptContent.replace(/%scriptArgs%/g, args.join(' '))
+                    : scriptContent + scriptArgs;
+
                 // Выполняем команду напрямую
-                execSync(scriptContent + scriptArgs, {
+                execSync(finalScriptContent, {
                     stdio: 'inherit',
                     env: process.env,
                     cwd: process.cwd(), // Важно: используем текущую директорию
