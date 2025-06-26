@@ -216,7 +216,7 @@ async function runPackageScript(command: string, args: string[], ui: UIProvider)
             }
 
             // Подготавливаем аргументы для передачи скрипту
-            const scriptArgs = args.length > 0 ? ` -- ${args.join(' ')}` : '';
+            const scriptArgs = args.length > 0 ? ` ${args.join(' ')}` : '';
 
             // Получаем команду из секции blueprint
             const scriptContent = packageJson.blueprint[command];
