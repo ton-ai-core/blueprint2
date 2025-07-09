@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import path from 'path';
 
 import { Cell } from '@ton/core';
 
@@ -56,13 +57,14 @@ export async function getCompilerConfigForContract(name: string): Promise<Compil
         return tactConfig;
     }
 
-    const compilables = await findCompiles();
+    const compilablesDirectory = await getCompilablesDirectory();
+    const compilables = await findCompiles(compilablesDirectory);
     const compilable = compilables.find((c) => c.name === name);
-    if (compilable === undefined) {
-        throw new Error(`Contract '${name}' not found`);
-    }
 
-    return extractCompilableConfig(compilable.path);
+    // Ensure compatibility with legacy usage like compile('subdirectory/ContractName')
+    const pathToExtract = compilable?.path ?? path.join(compilablesDirectory, name + COMPILE_END);
+
+    return extractCompilableConfig(pathToExtract);
 }
 
 export type CompileResult = TactCompileResult | FuncCompileResult | TolkCompileResult;
@@ -88,6 +90,7 @@ async function doCompileInner(name: string, config: CompilerConfig): Promise<Com
             targets: config.targets,
             sources: config.sources ?? ((path: string) => readFileSync(path).toString()),
             optLevel: config.optLevel,
+            debugInfo: config.debugInfo,
         } as DoCompileFuncConfig);
     }
 
@@ -130,6 +133,10 @@ export async function getCompilerOptions(config: CompilerConfig): Promise<{
 export async function doCompile(name: string, opts?: CompileOpts): Promise<CompileResult> {
     const config = await getCompilerConfigForContract(name);
 
+    if (opts?.debugInfo && isCompilableConfig(config) && (config.lang === undefined || config.lang === 'func')) {
+        config.debugInfo = true;
+    }
+
     if ('preCompileHook' in config && config.preCompileHook !== undefined) {
         await config.preCompileHook({
             userData: opts?.hookUserData,
@@ -155,6 +162,7 @@ export type CompileOpts = {
      * Any user-defined data that will be passed to both `preCompileHook` and `postCompileHook`.
      */
     hookUserData?: Record<string, unknown>;
+    debugInfo?: boolean;
 };
 
 /**
