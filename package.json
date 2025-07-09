@@ -26,7 +26,7 @@
     "devDependencies": {
         "@tact-lang/compiler": "^1.6.13",
         "@ton-ai-core/eslint-plugin-suggest-members": "^1.5.6",
-        "@ton-community/func-js": "^0.9.1",
+        "@ton-community/func-js": "^0.10.0",
         "@ton/core": "^0.60.1",
         "@ton/crypto": "^3.3.0",
         "@ton/sandbox": "^0.34.0",
@@ -44,7 +44,7 @@
     },
     "peerDependencies": {
         "@tact-lang/compiler": ">=1.6.13",
-        "@ton-community/func-js": ">=0.9.1",
+        "@ton-community/func-js": ">=0.10.0",
         "@ton/core": ">=0.60.1",
         "@ton/crypto": ">=3.3.0",
         "@ton/sandbox": ">=0.34.0",

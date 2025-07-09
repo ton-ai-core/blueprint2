@@ -1214,9 +1214,10 @@ __metadata:
     "@ton-ai-core/eslint-plugin-suggest-members": "npm:^1.5.6"
     "@ton-api/client": "npm:^0.2.0"
     "@ton-api/ton-adapter": "npm:^0.2.0"
-    "@ton-community/func-js": "npm:^0.9.1"
+    "@ton-community/func-js": "npm:^0.10.0"
     "@ton/core": "npm:^0.60.1"
     "@ton/crypto": "npm:^3.3.0"
+    "@ton/sandbox": "npm:^0.34.0"
     "@ton/tolk-js": "npm:^0.12.0"
     "@ton/ton": "npm:^15.2.1"
     "@ton/toolchain": "the-ton-tech/toolchain#v1.4.0"
@@ -1233,17 +1234,21 @@ __metadata:
     inquirer: "npm:^8.2.5"
     jest: "npm:^30.0.0"
     qrcode-terminal: "npm:^0.12.0"
-    ton-lite-client: "npm:^3.1.0"
+    ton-lite-client: "npm:^3.1.1"
     ts-jest: "npm:^29.3.4"
     ts-node: "npm:^10.9.1"
     typescript: "npm:^5.8.3"
   peerDependencies:
     "@tact-lang/compiler": ">=1.6.13"
-    "@ton-community/func-js": ">=0.9.1"
+    "@ton-community/func-js": ">=0.10.0"
     "@ton/core": ">=0.60.1"
     "@ton/crypto": ">=3.3.0"
+    "@ton/sandbox": ">=0.34.0"
     "@ton/tolk-js": ">=0.13.0"
     "@ton/ton": ">=15.2.1"
+  peerDependenciesMeta:
+    "@ton/sandbox":
+      optional: true
   bin:
     blueprint: dist/cli/cli.js
   languageName: unknown
@@ -1281,22 +1286,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ton-community/func-js-bin@npm:0.4.6-wasmfix.0":
-  version: 0.4.6-wasmfix.0
-  resolution: "@ton-community/func-js-bin@npm:0.4.6-wasmfix.0"
-  checksum: 10/ab51c4a1e82e98a1680600e6886a16e89696864b38bb87692ee39cf19880a5a653a89c804a8f1c75f415792abe7c343d7fb1cc2398ab4dc30f473073fadf955d
+"@ton-community/func-js-bin@npm:0.4.6-wasmfix.debugger.0":
+  version: 0.4.6-wasmfix.debugger.0
+  resolution: "@ton-community/func-js-bin@npm:0.4.6-wasmfix.debugger.0"
+  checksum: 10/8c9216aa16954cbd67ac09e37c4e96ceaa6150fa63c14766933746a258d8f018f2b1b3c508fb4bb78127d859984ed5068599fcb9a66897302cc4e50b24daaa5a
   languageName: node
   linkType: hard
 
-"@ton-community/func-js@npm:^0.9.1":
-  version: 0.9.1
-  resolution: "@ton-community/func-js@npm:0.9.1"
+"@ton-community/func-js@npm:^0.10.0":
+  version: 0.10.0
+  resolution: "@ton-community/func-js@npm:0.10.0"
   dependencies:
-    "@ton-community/func-js-bin": "npm:0.4.6-wasmfix.0"
+    "@ton-community/func-js-bin": "npm:0.4.6-wasmfix.debugger.0"
     arg: "npm:^5.0.2"
+    fflate: "npm:^0.8.2"
   bin:
     func-js: dist/cli.js
-  checksum: 10/cecf1739e1b48d2a3028e523b6cfcf845d02a2ee6dc06c7907b135d1eefa40b2e3cf4ec7e20e8565d645ad2d1e32679aecb1d581c1b0413727c50295daf081a0
+  checksum: 10/08170102e39b10d6b86720450bde6abd2fc6ef72248fa629faaf1a993809708f7f2df78f295ee6dee3bb22698a9bdbc98854bb6ae386e16abe43a4992a3592f3
   languageName: node
   linkType: hard
 
@@ -1359,6 +1365,28 @@ __metadata:
     jest:
       optional: true
   checksum: 10/9a5735ea3bdd25395778fe1a0863f09003dd620b19ab8d3eb5634530dabc107f36916a70921ff585474a3272c1ad96440e95c49df7c450ecb2e770eecad0a4cd
+  languageName: node
+  linkType: hard
+
+"@ton/sandbox@npm:^0.34.0":
+  version: 0.34.0
+  resolution: "@ton/sandbox@npm:0.34.0"
+  dependencies:
+    "@vscode/debugadapter": "npm:^1.68.0"
+    chalk: "npm:^4.1.2"
+    fflate: "npm:^0.8.2"
+    table: "npm:^6.9.0"
+  peerDependencies:
+    "@ton/core": ">=0.61.0"
+    "@ton/crypto": ">=3.3.0"
+    "@ton/test-utils": ">=0.7.0"
+    jest: ^29.5.0
+  peerDependenciesMeta:
+    "@ton/test-utils":
+      optional: true
+    jest:
+      optional: true
+  checksum: 10/118b57098a5fa08551f5696ed2c8959b27e769d9a9ec0b7a915dc5d4d61483357926d34f0e23235bd46b3660ce1504fc8900c5d80e96066b0efa229b7acb7596
   languageName: node
   linkType: hard
 
@@ -1951,6 +1979,22 @@ __metadata:
   version: 1.9.2
   resolution: "@unrs/resolver-binding-win32-x64-msvc@npm:1.9.2"
   conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@vscode/debugadapter@npm:^1.68.0":
+  version: 1.68.0
+  resolution: "@vscode/debugadapter@npm:1.68.0"
+  dependencies:
+    "@vscode/debugprotocol": "npm:1.68.0"
+  checksum: 10/8945b85883fa13b09d23ecd8aa2d014616e06a22797d4432013e8ca5cb867ec853c6f0d05bf6cb23fbc80ebfcb4fe994d4afb132bf04d367e5f6a121f5c39b99
+  languageName: node
+  linkType: hard
+
+"@vscode/debugprotocol@npm:1.68.0":
+  version: 1.68.0
+  resolution: "@vscode/debugprotocol@npm:1.68.0"
+  checksum: 10/3e3a8d795d9d2a58c14da969c5ea0696065c1989780e7c3c221b9a65105143869a2da0a38b237fc017d39e9595c07b9b4872e7d75ebc4817a97f7654dffe4a57
   languageName: node
   linkType: hard
 
@@ -3524,6 +3568,13 @@ __metadata:
     picomatch:
       optional: true
   checksum: 10/c186ba387e7b75ccf874a098d9bc5fe0af0e9c52fc56f8eac8e80aa4edb65532684bf2bf769894ff90f53bf221d6136692052d31f07a9952807acae6cbe7ee50
+  languageName: node
+  linkType: hard
+
+"fflate@npm:^0.8.2":
+  version: 0.8.2
+  resolution: "fflate@npm:0.8.2"
+  checksum: 10/2bd26ba6d235d428de793c6a0cd1aaa96a06269ebd4e21b46c8fd1bd136abc631acf27e188d47c3936db090bf3e1ede11d15ce9eae9bffdc4bfe1b9dc66ca9cb
   languageName: node
   linkType: hard
 
@@ -6845,9 +6896,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ton-lite-client@npm:^3.1.0":
-  version: 3.1.0
-  resolution: "ton-lite-client@npm:3.1.0"
+"ton-lite-client@npm:^3.1.1":
+  version: 3.1.1
+  resolution: "ton-lite-client@npm:3.1.1"
   dependencies:
     adnl: "npm:^1.0.3"
     dataloader: "npm:^2.1.0"
@@ -6856,8 +6907,8 @@ __metadata:
     ton-tl: "npm:^1.0.1"
     tweetnacl: "npm:^1.0.3"
   peerDependencies:
-    "@ton/core": ^0.56.0
-  checksum: 10/1ffa282e22b42c7adbef9e889f206c6dbb85ad15f9b9659cd131c5e44e41e03abb7962aee699b55e53036cc7ec98f2df5a6d1c025a77446f820eb2a921c8a3d9
+    "@ton/core": ">=0.56.0"
+  checksum: 10/f751e61a0721a66f0169492068850349666e6c87dbf34a5bac6fb94c996b74184f4824725b6f25dfab13671f9e1359ada16c3af94421cd6ef1e4304127396ed7
   languageName: node
   linkType: hard
 
