@@ -60,8 +60,7 @@ export async function buildOne(contract: string, ui?: UIProvider) {
         if (result.lang === 'tolk') {
             ui?.write(`\n${result.stderr}`);
         }
-        ui?.write('\n✅ Compiled successfully! Cell BOC result:\n\n');
-        ui?.write(JSON.stringify(res, null, 2));
+        ui?.write('\n✅ Compiled successfully!');
 
         await fs.mkdir(BUILD_DIR, { recursive: true });
 
@@ -72,7 +71,63 @@ export async function buildOne(contract: string, ui?: UIProvider) {
             await fs.writeFile(fiftFilepath, result.fiftCode);
         }
 
+        // Сначала сообщаем о записи основного артефакта
         ui?.write(`\n✅ Wrote compilation artifact to ${path.relative(process.cwd(), buildArtifactPath)}`);
+
+        // Показываем содержимое директории контракта в виде дерева
+        ui?.write('\n📦 Build artifacts:');
+
+        // Выводим корневой файл .compiled.json
+        ui?.write(`├── 📄 ${path.basename(buildArtifactPath)}`);
+
+        // Затем проверяем и выводим содержимое директории контракта
+        const contractDir = path.join(BUILD_DIR, contract);
+        if (existsSync(contractDir)) {
+            try {
+                const files = await fs.readdir(contractDir);
+
+                // Сортируем файлы для более организованного вывода
+                const sortedFiles = files.sort();
+
+                // Группируем файлы по типу (расширению)
+                const fileGroups: Record<string, string[]> = {};
+
+                for (const file of sortedFiles) {
+                    const ext = path.extname(file);
+                    if (!fileGroups[ext]) {
+                        fileGroups[ext] = [];
+                    }
+                    fileGroups[ext].push(file);
+                }
+
+                // Выводим директорию контракта
+                ui?.write(`└── 📁 ${contract}/`);
+
+                // Выводим файлы по группам
+                const extensions = Object.keys(fileGroups).sort();
+                for (let i = 0; i < extensions.length; i++) {
+                    const ext = extensions[i];
+                    const files = fileGroups[ext];
+
+                    for (let j = 0; j < files.length; j++) {
+                        const file = files[j];
+                        const isLast = i === extensions.length - 1 && j === files.length - 1;
+                        const prefix = isLast ? '    └── ' : '    ├── ';
+
+                        // Выбираем иконку в зависимости от типа файла
+                        let icon = '📄';
+                        if (ext === '.abi') icon = '📋';
+                        else if (ext === '.code.boc') icon = '📦';
+                        else if (ext === '.ts') icon = '📝';
+                        else if (ext === '.fif') icon = '🔧';
+
+                        ui?.write(`${prefix}${icon} ${file}`);
+                    }
+                }
+            } catch (_err) {
+                // Игнорируем ошибки чтения директории
+            }
+        }
     } catch (e) {
         if (ui) {
             ui?.clearActionPrompt();
