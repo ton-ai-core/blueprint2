@@ -25,7 +25,7 @@
     "prettier": "@ton/toolchain/prettier",
     "devDependencies": {
         "@tact-lang/compiler": "^1.6.13",
-        "@ton-ai-core/eslint-plugin-suggest-members": "^1.6.2",
+        "@ton-ai-core/eslint-plugin-suggest-members": "^1.6.4",
         "@ton-community/func-js": "^0.10.0",
         "@ton/core": "^0.61.0",
         "@ton/crypto": "^3.3.0",
