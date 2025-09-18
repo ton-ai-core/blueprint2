@@ -455,7 +455,7 @@ function showHelp() {
     console.log(
         chalk.cyanBright(`  blueprint help`) +
             `\t` +
-            chalk.whiteBright(`shows more detailed help, also see https://github.com/ton-ai-core/blueprint2`),
+            chalk.whiteBright(`shows more detailed help, also see https://github.com/ton-ai-core/blueprint`),
     );
     console.log(`\t\t\t` + chalk.gray(`blueprint help`));
 

@@ -42,8 +42,8 @@ module.exports = {
       "error", {
         "paths": [
           {
-            "name": "@ton/blueprint",
-            "message": "This project uses @ton-ai-core/blueprint rather than the deprecated @ton/blueprint library. Please refactor your imports to utilize the enhanced AI-integrated blueprint framework."
+            "name": "@ton-ai-core/blueprint",
+            "message": "This project uses @ton-ai-core/blueprint rather than the deprecated @ton-ai-core/blueprint library. Please refactor your imports to utilize the enhanced AI-integrated blueprint framework."
           },
           {
             "name": "@nowarp/blueprint-misti",
@@ -52,8 +52,8 @@ module.exports = {
         ],
         "patterns": [
           {
-            "group": ["@ton/blueprint/*"],
-            "message": "This project uses @ton-ai-core/blueprint rather than the deprecated @ton/blueprint library. Please refactor your imports to utilize the enhanced AI-integrated blueprint framework."
+            "group": ["@ton-ai-core/blueprint/*"],
+            "message": "This project uses @ton-ai-core/blueprint rather than the deprecated @ton-ai-core/blueprint library. Please refactor your imports to utilize the enhanced AI-integrated blueprint framework."
           },
           {
             "group": ["@nowarp/blueprint-misti/*"],

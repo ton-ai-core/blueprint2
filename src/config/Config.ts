@@ -66,7 +66,7 @@ export interface Config {
      *     manifestUrl: 'https://yourdomain.com/custom-manifest.json',
      * };
      *
-     * @default https://raw.githubusercontent.com/ton-ai-core/blueprint2/main/tonconnect/manifest.json
+     * @default https://raw.githubusercontent.com/ton-ai-core/blueprint/main/tonconnect/manifest.json
      */
     manifestUrl?: string;
 }

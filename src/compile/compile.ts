@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 
-import { Cell } from '@ton/core';
+import { beginCell, Cell } from '@ton/core';
 
 import { COMPILABLES_DIR, WRAPPERS_DIR } from '../paths';
 import { CompilableConfig, CompilerConfig, isCompilableConfig } from './CompilerConfig';
@@ -130,6 +130,12 @@ export async function getCompilerOptions(config: CompilerConfig): Promise<{
     };
 }
 
+export function libraryCellFromCode(code: Cell) {
+    // Pack resulting code hash into library cell
+    const libPrep = beginCell().storeUint(2, 8).storeBuffer(code.hash()).endCell();
+    return new Cell({ exotic: true, bits: libPrep.bits, refs: libPrep.refs });
+}
+
 export async function doCompile(name: string, opts?: CompileOpts): Promise<CompileResult> {
     const config = await getCompilerConfigForContract(name);
 
@@ -151,6 +157,12 @@ export async function doCompile(name: string, opts?: CompileOpts): Promise<Compi
         });
     }
 
+    const buildLibrary = opts?.buildLibrary ?? ('buildLibrary' in config && config.buildLibrary === true);
+
+    if (buildLibrary) {
+        res.code = libraryCellFromCode(res.code);
+    }
+
     return res;
 }
 
@@ -163,6 +175,7 @@ export type CompileOpts = {
      */
     hookUserData?: Record<string, unknown>;
     debugInfo?: boolean;
+    buildLibrary?: boolean;
 };
 
 /**

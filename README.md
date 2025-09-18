@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/ton-ai-core/blueprint2/main/logo.svg" width=400 >
+<img src="https://raw.githubusercontent.com/ton-ai-core/blueprint/main/logo.svg" width=400 >
 
 # Blueprint
 
@@ -16,12 +16,14 @@ A development environment for TON blockchain for writing, testing, and deploying
   * [Directory structure](#directory-structure)
   * [Building contracts](#building-contracts)
   * [Running the test suites](#running-the-test-suites)
-  * [Deploying contracts](#deploying-contracts)
-  * [Custom scripts](#custom-scripts)
+  * [Running scripts](#running-scripts)
+    * [Deploying contracts](#deploying-contracts)
+    * [Using Mnemonic Provider](#using-mnemonic-provider)
 * [Contract development](#contract-development)
   * [Creating contracts](#creating-contracts)
   * [Writing contract code](#writing-contract-code)
   * [Testing contracts](#testing-contracts)
+  * [Benchmark contracts](#benchmark-contracts)
 * [Configuration](#configuration)
   * [Plugins](#plugins)
   * [Custom network](#custom-network)
@@ -34,24 +36,24 @@ A development environment for TON blockchain for writing, testing, and deploying
 Run the command in terminal to create a new project and follow the on-screen instructions:
 
 ```console
-npm create ton@latest
+npm create ton-ai@latest
 ```
 
 ## Overview
 
-Blueprint is an all-in-one development environment designed to enhance the process of creating, testing, and deploying smart contracts on TON blockchain using [FunC](https://docs.ton.org/develop/func/overview), [Tolk](https://docs.ton.org/develop/tolk/overview), and [Tact](https://docs.tact-lang.org/) languages.
+Blueprint is an all-in-one development environment designed to enhance the process of creating, testing, and deploying smart contracts on TON blockchain using [Tolk](https://docs.ton.org/develop/tolk/overview), [FunC](https://docs.ton.org/develop/func/overview), and [Tact](https://docs.tact-lang.org/) languages.
 
 ### Core features
 
-* Create a development environment from template - `npm create ton@latest`
+* Create a development environment from template - `npm create ton-ai@latest`
 * Streamlined workflow for building, testing and deploying smart contracts
 * Dead simple deployment to mainnet/testnet using your favorite wallet (eg. Tonkeeper)
 * Blazing fast testing of multiple smart contracts in an isolated blockchain running in-process
 
 ### Tech stack
 
-1. Compiling FunC with https://github.com/ton-community/func-js
-2. Compiling Tolk with https://github.com/ton-blockchain/tolk-js
+1. Compiling Tolk with https://github.com/ton-blockchain/tolk-js
+2. Compiling FunC with https://github.com/ton-community/func-js
 3. Compiling Tact with https://github.com/tact-lang/tact
    * Uses [`tact.config.json`](https://docs.tact-lang.org/book/config/) as the build configuration file
 4. Testing smart contracts with https://github.com/ton-org/sandbox
@@ -61,9 +63,9 @@ Blueprint is an all-in-one development environment designed to enhance the proce
 
 * [Node.js](https://nodejs.org) with a recent version like v18. Version can be verified with `node -v`
 * IDE with TON support:
-  * [Visual Studio Code](https://code.visualstudio.com/) with the [FunC plugin](https://marketplace.visualstudio.com/items?itemName=tonwhales.func-vscode), [Tolk plugin](https://marketplace.visualstudio.com/items?itemName=ton-core.tolk-vscode) or [Tact plugin](https://marketplace.visualstudio.com/items?itemName=tonstudio.vscode-tact)
+  * [Visual Studio Code](https://code.visualstudio.com/) with the [TON plugin](https://marketplace.visualstudio.com/items?itemName=ton-core.vscode-ton), [FunC plugin](https://marketplace.visualstudio.com/items?itemName=tonwhales.func-vscode), or [Tact plugin](https://marketplace.visualstudio.com/items?itemName=tonstudio.vscode-tact)
   * [IntelliJ IDEA](https://www.jetbrains.com/idea/)
-    * [TON Development plugin](https://plugins.jetbrains.com/plugin/23382-ton) for FunC, Tolk and Fift
+    * [TON Development plugin](https://plugins.jetbrains.com/plugin/23382-ton) for Tolk, FunC and Fift
     * [Tact plugin by TON Studio](https://plugins.jetbrains.com/plugin/27290-tact) for Tact
 
 ## Features overview
@@ -105,23 +107,23 @@ Blueprint is an all-in-one development environment designed to enhance the proce
 
 > Learn more about writing tests from the Sandbox's documentation - [here](https://github.com/ton-org/sandbox#writing-tests).
 
-### Deploying contracts
-
-1. You need a deployment script in `scripts/deploy<CONTRACT>.ts` - [example](/example/scripts/deployCounter.ts)
-2. Run interactive: &nbsp;&nbsp; `npx blueprint run` &nbsp; or &nbsp; `yarn blueprint run`
-3. Non-interactive: &nbsp; `npx/yarn blueprint run deploy<CONTRACT> --<NETWORK> --<DEPLOY_METHOD>`
-   * Example: `yarn blueprint run deployCounter --mainnet --tonconnect`
-
-### Custom scripts
+### Running scripts
 
 1. Custom scripts should be located in `scripts` folder
 2. Script file must have exported function `run`
 ```ts
-export async function run(provider: NetworkProvider) : Promise<void> {
+export async function run(provider: NetworkProvider, args: string[]) {
   // 
 }
 ```
 3. Script can be run using `npx/yarn blueprint run <SCRIPT> [arg1, arg2, ...]` command
+
+#### Deploying contracts
+
+1. You need a deployment script in `scripts/deploy<CONTRACT>.ts` - [example](/example/scripts/deployCounter.ts)
+2. Run interactive: &nbsp;&nbsp; `npx blueprint run` &nbsp; or &nbsp; `yarn blueprint run`
+3. Non-interactive: &nbsp; `npx/yarn blueprint run deploy<CONTRACT> --<NETWORK> --<DEPLOY_METHOD>`
+  * Example: `yarn blueprint run deployCounter --mainnet --tonconnect`
 
 #### Using Mnemonic Provider
 
@@ -137,9 +139,13 @@ Start by adding the following environment variables to your `.env` file:
 
 Once your environment is set up, you can use the mnemonic wallet for deployment with the appropriate configuration.
 
+### Updating Tolk version
+
+Tact version can be updated to the latest using `npm update/yarn upgrade @ton/tolk-js` command
+
 ### Updating FunC version
 
-FunC version can be updated using `npx/yarn blueprint set func` command
+FunC version can be updated to a specific version using `npx/yarn blueprint set func` command, or to the latest using `npm update/yarn upgrade @ton-community/func-js` command
 
 ### Updating Tact version
 
@@ -156,19 +162,25 @@ Before developing, make sure that your current working directory is located in t
 ### Creating contracts
 
 1. Run interactive: &nbsp;&nbsp; `npx blueprint create` &nbsp; or &nbsp; `yarn blueprint create`
-2. Non-interactive: &nbsp; `npx/yarn blueprint create <CONTRACT> --type <TYPE>` (type can be `func-empty`, `tolk-empty`, `tact-empty`, `func-counter`, `tolk-counter`, `tact-counter`)
-   * Example: `yarn blueprint create MyNewContract --type func-empty`
+2. Non-interactive: &nbsp; `npx/yarn blueprint create <CONTRACT> --type <TYPE>` (type can be `tolk-empty`, `func-empty`, `tact-empty`, `tolk-counter`, `func-counter`, `tact-counter`)
+   * Example: `yarn blueprint create MyNewContract --type tolk-empty`
+
+### Renaming contracts
+
+1. Run interactive: &nbsp;&nbsp; `npx blueprint rename` &nbsp; or &nbsp; `yarn blueprint rename`
+2. Non-interactive: &nbsp; `npx/yarn blueprint rename <OLD_NAME> <NEW_NAME>`
+  * Example: `yarn blueprint rename OldContract NewContract `
 
 ### Writing contract code
+
+#### Tolk
+1. Implement the contract in `contracts/<CONTRACT>.tolk`; if you wish, split into multiple files
+2. Implement wrapper TypeScript class in `wrappers/<CONTRACT>.ts` to encode messages and decode getters
 
 #### FunC
 1. Implement the standalone FunC root contract in `contracts/<CONTRACT>.fc`
 2. Implement shared FunC imports (if breaking code to multiple files) in `contracts/imports/*.fc`
 3. Implement wrapper TypeScript class in `wrappers/<CONTRACT>.ts` to encode messages and decode getters
-
-#### Tolk
-1. Implement the contract in `contracts/<CONTRACT>.tolk`; if you wish, split into multiple files
-2. Implement wrapper TypeScript class in `wrappers/<CONTRACT>.ts` to encode messages and decode getters
 
 #### Tact
 1. Implement the contract in `contracts/<CONTRACT>.tact`
@@ -180,6 +192,37 @@ Before developing, make sure that your current working directory is located in t
 2. Rely on the wrapper TypeScript class from `wrappers/<CONTRACT>.ts` to interact with the contract
 
 > Learn more about writing tests from the Sandbox's documentation - [here](https://github.com/ton-org/sandbox#writing-tests).
+
+### Publishing Wrapper Code
+
+1. **Authenticate with npm**
+Run `npm adduser` to log in to your npm account.
+> 📝 **Note:** You can learn more about advanced authentication in the official npm docs:
+> [npmrc – Auth-Related Configuration](https://docs.npmjs.com/cli/v9/configuring-npm/npmrc#auth-related-configuration)
+
+2. **Update the package version**
+Edit the `version` field in your `package.json` to reflect the new release (e.g., `1.0.1` → `1.0.2`).
+
+3. **Build the package**
+Run the following command to generate and bundle your contract wrappers:
+
+```bash
+blueprint pack
+```
+
+4. **Publish to npm**
+Push the package to the public npm registry:
+
+```bash
+npm publish --access public
+```
+
+### Benchmark contracts
+
+1. Run `npx blueprint snapshot [--label=<comment>|-l <comment>]` to collect metrics of contracts and save snapshot
+2. Run `npx blueprint test --gas-report|-g` to compare current metrics and saved snapshot
+
+> Learn more about collect metric from the Sandbox's documentation - [here](https://github.com/ton-org/sandbox#benchmark-contracts).
 
 ## Configuration
 
@@ -266,9 +309,51 @@ npx blueprint run \
 
 You can also use custom network to verify contracts, like so:
 ```bash
-npx blueprint verify --custom https://toncenter.com/api/v2/jsonRPC --custom-version v2 --custom-type mainnet --custom-key YOUR_API_KEY
+npx blueprint verify --custom https://toncenter.com/api/v2/jsonRPC --custom-version v2 --custom-type mainnet --custom-key YOUR_API_KEY --compiler-version 0.4.4-newops.1
 ```
 (or similarly using the config), however custom type MUST be specified as either `mainnet` or `testnet` when verifying.
+
+### Request timeout
+
+You can optionally configure how long HTTP requests should wait before timing out using the `requestTimout` field. This can be especially useful when working with unstable or slow networks.
+
+```typescript
+import { Config } from '@ton-ai-core/blueprint';
+
+export const config: Config = {
+    requestTimeout: 10000, // 10 seconds
+};
+```
+
+### Recursive wrappers
+
+You can configure whether the `wrappers` or `compilables` directories should be searched recursively for contracts configs by setting the `recursiveWrappers` field.
+
+```typescript
+import { Config } from '@ton-ai-core/blueprint';
+
+export const config: Config = {
+    recursiveWrappers: true,
+};
+```
+
+By default, this is set to `false`.
+
+### TonConnect manifest URL
+
+If you're using a TonConnect provider, you can override the default manifest URL by specifying the `manifestUrl` field.
+```typescript
+import { Config } from '@ton-ai-core/blueprint';
+
+export const config: Config = {
+    manifestUrl: 'https://yourdomain.com/custom-manifest.json',
+};
+```
+
+By default, the manifest URL is set to:
+```
+https://raw.githubusercontent.com/ton-ai-core/blueprint/main/tonconnect/manifest.json
+```
 
 ## Contributors
 
@@ -280,4 +365,4 @@ MIT
 
 ## Donations
 
-TON - `UQCcfBGSwJswi_mzx1BaCHz7WJ3NdcUZLwzfk4-Cl0fxgMyf`
+TON - `EQAQR1d1Q4NaE5EefwUMdrr1QvXg-8mDB0XI2-fwDBD0nYxC`

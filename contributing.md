@@ -7,7 +7,7 @@ We highly appreciate your contributions to the project ❤️
 ### Step 1 — get code
 
 ```shell
-git clone git@github.com:ton-org/blueprint.git
+git clone git@github.com:ton-ai-core/blueprint.git
 cd blueprint
 git checkout -b name-of-your-feature origin/develop
 ```
@@ -31,7 +31,7 @@ git commit --message "fix: hide password display when searching for a user"
 
 ### Step 3 — make a fork
 
-Go [here](https://github.com/ton-org/blueprint/fork) to make a fork, then setup your remote:
+Go [here](https://github.com/ton-ai-core/blueprint/fork) to make a fork, then setup your remote:
 
 ```bash
 git remote add self url_of_your_fork
@@ -45,10 +45,10 @@ Push:
 git push --set-upstream self name-of-your-feature
 ```
 
-Then create a pull request from the [pull requests page](https://github.com/ton-org/blueprint/pulls) or directly:
+Then create a pull request from the [pull requests page](https://github.com/ton-ai-core/blueprint/pulls) or directly:
 
 ```shell
-https://github.com/ton-org/blueprint/pull/new/name-of-your-feature
+https://github.com/ton-ai-core/blueprint/pull/new/name-of-your-feature
 ```
 (note the name of your branch in the URL)
 

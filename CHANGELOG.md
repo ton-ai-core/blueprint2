@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] - 2025-08-18
+
+### Added
+
+- Added `libraryHash` and `libraryBoc` to the build result when building libraries
+
+## [0.39.1] - 2025-08-05
+
+### Added
+
+- Added `--compiler-version` flag to support precise version selection when verifying
+
+## [0.39.0] - 2025-08-04
+
+### Added
+
+- Added `buildLibrary` wrapper compile config and `compile` function option to convert the built code into a library
+
 ## [0.38.0] - 2025-07-07
 
 ### Fixed
